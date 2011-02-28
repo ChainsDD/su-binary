@@ -1,0 +1,19 @@
+This is the su binary for Superuser on Android.
+
+Any app that requires root access must call this binary in order to be given root access.
+
+Branches for this repo support the following Android versions:
+
+ - legacy
+   - cupcake
+   - donut
+
+ - master
+   - eclair
+   - froyo
+   - gingerbread
+   - honeycomb*
+
+Branches marked with '-dev' are in work and should probably not be used. I will push to those channels as I develop new versions so they may be broken from time to time.
+
+* I have yet to personally test superuser on any honeycomb devices, therefore I cannot guarantee it's compatibility
