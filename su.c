@@ -24,7 +24,7 @@
 
 #include <sqlite3.h>
 
-extern char* _mktemp(char*); /* mktemp doesn't link right.  Don't ask me why. */
+//extern char* _mktemp(char*); /* mktemp doesn't link right.  Don't ask me why. */
 
 #include "su.h"
 
@@ -146,7 +146,7 @@ static int socket_create_temp()
         memset(&sun, 0, sizeof(sun));
         sun.sun_family = AF_LOCAL;
         strcpy(socket_path_buf, socket_path_template);
-        socket_path = _mktemp(socket_path_buf);
+        socket_path = mktemp(socket_path_buf);
         snprintf(sun.sun_path, sizeof(sun.sun_path), "%s", socket_path);
 
         if (bind(fd, (struct sockaddr*)&sun, sizeof(sun)) < 0) {
