@@ -1,3 +1,20 @@
+/*
+** Copyright 2010, Adam Shanks (@ChainsDD)
+** Copyright 2008, Zinx Verituse (@zinxv)
+**
+** Licensed under the Apache License, Version 2.0 (the "License");
+** you may not use this file except in compliance with the License.
+** You may obtain a copy of the License at
+**
+**     http://www.apache.org/licenses/LICENSE-2.0
+**
+** Unless required by applicable law or agreed to in writing, software
+** distributed under the License is distributed on an "AS IS" BASIS,
+** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+** See the License for the specific language governing permissions and
+** limitations under the License.
+*/
+
 #include <unistd.h>
 #include <android_runtime/ActivityManager.h>
 #include <binder/IBinder.h>
@@ -23,7 +40,7 @@ static const int VAL_INTEGER = 1;
 
 static const int START_SUCCESS = 0;
 
-int send_intent(struct su_initiator *from, struct su_request *to, const char *socket_path, int type)
+int send_intent(struct su_initiator *from, struct su_request *to, const char *socket_path, int allow, int type)
 {
     char sdk_version_prop[PROPERTY_VALUE_MAX] = "0";
     property_get("ro.build.version.sdk", sdk_version_prop, "0");
@@ -43,7 +60,7 @@ int send_intent(struct su_initiator *from, struct su_request *to, const char *so
     if (type == 0) {
         data.writeString16(String16("com.noshufou.android.su.REQUEST")); /* action */
     } else {
-        data.writeString16(String16("com.noshufou.android.su.NOTIFICATION")); /* action */
+        data.writeString16(String16("com.noshufou.android.su.RESULT")); /* action */
     }
     data.writeInt32(NULL_TYPE_ID); /* Uri - data */
     data.writeString16(NULL, 0); /* type */
@@ -63,12 +80,17 @@ int send_intent(struct su_initiator *from, struct su_request *to, const char *so
         int oldPos = data.dataPosition();
         data.writeInt32(0x4C444E42); // 'B' 'N' 'D' 'L'
         { /* writeMapInternal */
-            data.writeInt32(4); /* writeMapInternal - size */
+            data.writeInt32(7); /* writeMapInternal - size */
 
             data.writeInt32(VAL_STRING);
             data.writeString16(String16("caller_uid"));
             data.writeInt32(VAL_INTEGER);
             data.writeInt32(from->uid);
+
+            data.writeInt32(VAL_STRING);
+            data.writeString16(String16("caller_bin"));
+            data.writeInt32(VAL_STRING);
+            data.writeString16(String16(from->bin));
 
             data.writeInt32(VAL_STRING);
             data.writeString16(String16("desired_uid"));
@@ -84,6 +106,16 @@ int send_intent(struct su_initiator *from, struct su_request *to, const char *so
             data.writeString16(String16("socket"));
             data.writeInt32(VAL_STRING);
             data.writeString16(String16(socket_path));
+            
+            data.writeInt32(VAL_STRING);
+            data.writeString16(String16("allow"));
+            data.writeInt32(VAL_INTEGER);
+            data.writeInt32(allow);
+            
+            data.writeInt32(VAL_STRING);
+            data.writeString16(String16("version_code"));
+            data.writeInt32(VAL_INTEGER);
+            data.writeInt32(VERSION_CODE);
         }
         int newPos = data.dataPosition();
         data.setDataPosition(oldPos - 4);

@@ -1,3 +1,20 @@
+/*
+** Copyright 2010, Adam Shanks (@ChainsDD)
+** Copyright 2008, Zinx Verituse (@zinxv)
+**
+** Licensed under the Apache License, Version 2.0 (the "License");
+** you may not use this file except in compliance with the License.
+** You may obtain a copy of the License at
+**
+**     http://www.apache.org/licenses/LICENSE-2.0
+**
+** Unless required by applicable law or agreed to in writing, software
+** distributed under the License is distributed on an "AS IS" BASIS,
+** WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+** See the License for the specific language governing permissions and
+** limitations under the License.
+*/
+
 #define LOG_TAG "su"
 
 #include <sys/types.h>
@@ -24,18 +41,15 @@
 
 #include <sqlite3.h>
 
-//extern char* _mktemp(char*); /* mktemp doesn't link right.  Don't ask me why. */
-
 #include "su.h"
 
-/* Ewwww.  I'm way too lazy. */
-static const char socket_path_template[PATH_MAX] = REQUESTOR_CACHE_PATH "/.socketXXXXXX";
-static char socket_path_buf[PATH_MAX];
-static char *socket_path = NULL;
-static int socket_serv_fd = -1;
-static char shell[PATH_MAX];
-static unsigned req_uid = 0;
+//extern char* _mktemp(char*); /* mktemp doesn't link right.  Don't ask me why. */
 
+extern sqlite3 *database_init();
+extern int database_check(sqlite3*, struct su_initiator*, struct su_request*);
+
+/* Still lazt, will fix this */
+static char *socket_path = NULL;
 static sqlite3 *db = NULL;
 
 static struct su_initiator su_from = {
@@ -130,8 +144,9 @@ static void cleanup_signal(int sig)
     exit(sig);
 }
 
-static int socket_create_temp()
+static int socket_create_temp(unsigned req_uid)
 {
+    static char buf[PATH_MAX];
     int fd, err;
 
     struct sockaddr_un sun;
@@ -145,8 +160,8 @@ static int socket_create_temp()
     for (;;) {
         memset(&sun, 0, sizeof(sun));
         sun.sun_family = AF_LOCAL;
-        strcpy(socket_path_buf, socket_path_template);
-        socket_path = mktemp(socket_path_buf);
+        strcpy(buf, SOCKET_PATH_TEMPLATE);
+        socket_path = mktemp(buf);
         snprintf(sun.sun_path, sizeof(sun.sun_path), "%s", socket_path);
 
         if (bind(fd, (struct sockaddr*)&sun, sizeof(sun)) < 0) {
@@ -207,6 +222,7 @@ static int socket_accept(int serv_fd)
 static int socket_receive_result(int serv_fd, char *result, ssize_t result_len)
 {
     ssize_t len;
+    char buf[64];
     
     for (;;) {
         int fd = socket_accept(serv_fd);
@@ -219,8 +235,9 @@ static int socket_receive_result(int serv_fd, char *result, ssize_t result_len)
             return -1;
         }
 
-        if (len > 0)
+        if (len > 0) {
             break;
+        }
     }
 
     result[len] = '\0';
@@ -228,136 +245,23 @@ static int socket_receive_result(int serv_fd, char *result, ssize_t result_len)
     return 0;
 }
 
-static sqlite3 *database_init()
+static void usage(void)
 {
-    sqlite3 *db;
-
-    if (mkdir(REQUESTOR_DATABASES_PATH, 0771) >= 0) {
-        chown(REQUESTOR_DATABASES_PATH, req_uid, req_uid);
-    }
-
-    if (sqlite3_open(REQUESTOR_DATABASE_PATH, &db) != SQLITE_OK) {
-        LOGE("Couldn't open database");
-        return NULL;
-    }
-
-    if (sqlite3_exec(db,
-        "PRAGMA journal_mode = delete;",
-        NULL,
-        NULL,
-        NULL
-    ) != SQLITE_OK) {
-        LOGE("Could not set journal mode");
-        sqlite3_close(db);
-        return NULL;
-    }
-
-    chmod(REQUESTOR_DATABASE_PATH, 0660);
-    chown(REQUESTOR_DATABASE_PATH, req_uid, req_uid);
-
-    if (sqlite3_exec(db,
-        "CREATE TABLE IF NOT EXISTS apps (_id INTEGER, uid INTEGER, package TEXT, name TEXT, exec_uid INTEGER, exec_cmd TEXT, allow INTEGER, PRIMARY KEY (_id), UNIQUE (uid,exec_uid,exec_cmd));",
-        NULL,
-        NULL,
-        NULL
-    ) != SQLITE_OK) {
-        LOGE("Couldn't create apps table");
-        sqlite3_close(db);
-        return NULL;
-    }
-
-    if (sqlite3_exec(db,
-        "CREATE TABLE IF NOT EXISTS logs (_id INTEGER, app_id INTEGER, date INTEGER, type INTEGER, PRIMARY KEY (_id));",
-        NULL,
-        NULL,
-        NULL
-    ) != SQLITE_OK) {
-        LOGE("Couldn't create logs table");
-        sqlite3_close(db);
-        return NULL;
-    }
-
-    return db;
-}
-
-enum {
-    DB_INTERACTIVE,
-    DB_DENY,
-    DB_ALLOW
-};
-
-static int database_check(sqlite3 *db, struct su_initiator *from, struct su_request *to)
-{
-    char sql[4096];
-    char *zErrmsg;
-    char **result;
-    int nrow,ncol;
-    int allow;
-    struct timeval tv;
-
-    sqlite3_snprintf(
-        sizeof(sql), sql,
-        "SELECT _id,allow FROM apps WHERE uid=%u AND exec_uid=%u AND exec_cmd='%q';",
-        (unsigned)from->uid, to->uid, to->command
-    );
-
-    if (strlen(sql) >= sizeof(sql)-1)
-        return DB_DENY;
-        
-    if (sqlite3_get_table(db, sql, &result, &nrow, &ncol, &zErrmsg) != SQLITE_OK) {
-        LOGE("Database check failed with error message %s", zErrmsg);
-        return DB_DENY;
-    }
-    
-    if (nrow == 0 || ncol != 2)
-        return DB_INTERACTIVE;
-        
-    if (strcmp(result[0], "_id") == 0 && strcmp(result[1], "allow") == 0) {
-        if (strcmp(result[3], "1") == 0) {
-            allow = DB_ALLOW;
-        } else {
-            allow = DB_DENY;
-        }
-        gettimeofday(&tv, NULL);
-        sqlite3_snprintf(
-            sizeof(sql), sql,
-            "INSERT OR IGNORE INTO logs (app_id,date,type) VALUES (%s,(%ld*1000)+(%ld/1000),%s);",
-            result[2], tv.tv_sec, tv.tv_usec, result[3]
-        );
-        sqlite3_exec(db, sql, NULL, NULL, NULL);
-        return allow;
-    }
-
-    sqlite3_free_table(result);
-    
-    return DB_INTERACTIVE;
-}
-
-static int check_notifications(sqlite3 *db)
-{
-    char sql[4096];
-    char *zErrmsg;
-    char **result;
-    int nrow,ncol;
-    int notifications;
-    
-    sqlite3_snprintf(
-        sizeof(sql), sql,
-        "SELECT value FROM prefs WHERE key='notifications';"
-    );
-    
-    if (sqlite3_get_table(db, sql, &result, &nrow, &ncol, &zErrmsg) != SQLITE_OK) {
-        LOGE("Notifications check failed with error message %s", zErrmsg);
-        return 0;
-    }
-    
-    if (nrow == 0 || ncol != 1)
-        return 0;
-    
-    if (strcmp(result[0], "value") == 0 && strcmp(result[1], "1") == 0)
-        return 1;
-        
-    return 0;
+    printf("Usage: su [options] [LOGIN]\n\n");
+    printf("Options:\n");
+    printf("  -c, --command COMMAND         pass COMMAND to the invoked shell\n");
+    printf("  -h, --help                    display this help message and exit\n");
+    printf("  -, -l, --login                make the shell a login shell\n");
+    // I'll look more into this to figure out what it's about,
+    // maybe implement it later
+//    printf("  -m, -p,\n");
+//    printf("  --preserve-environment        do not reset environment variables, and\n");
+//    printf("                                keep the same shell\n");
+    printf("  -s, --shell SHELL             use SHELL instead of the default in passwd\n");
+    printf("  -v, --version                 display version number and exit\n");
+    printf("  -V                            display version code and exit. this is\n");
+    printf("                                used almost exclusively by Superuser.apk\n");
+    exit(EXIT_SUCCESS);
 }
 
 static void deny(void)
@@ -365,20 +269,20 @@ static void deny(void)
     struct su_initiator *from = &su_from;
     struct su_request *to = &su_to;
 
+    send_intent(&su_from, &su_to, "", 0, 1);
     LOGW("request rejected (%u->%u %s)", from->uid, to->uid, to->command);
     fprintf(stderr, "%s\n", strerror(EACCES));
-    exit(-1);
+    exit(EXIT_FAILURE);
 }
 
-static void allow(int notifications)
+static void allow(char *shell)
 {
     struct su_initiator *from = &su_from;
     struct su_request *to = &su_to;
     char *exe = NULL;
 
-    if (notifications)
-        send_intent(&su_from, &su_to, "", 1);
-        
+    send_intent(&su_from, &su_to, "", 1, 1);
+
     if (!strcmp(shell, "")) {
         strcpy(shell , "/system/bin/sh");
     }
@@ -386,40 +290,48 @@ static void allow(int notifications)
     setgroups(0, NULL);
     setresgid(to->uid, to->uid, to->uid);
     setresuid(to->uid, to->uid, to->uid);
-    LOGD("%u %s executing %u %s using shell %s : %s", from->uid, from->bin, to->uid, to->command, shell, exe);
+    LOGD("%u %s executing %u %s using shell %s : %s", from->uid, from->bin,
+            to->uid, to->command, shell, exe);
     if (strcmp(to->command, DEFAULT_COMMAND)) {
         execl(shell, exe, "-c", to->command, (char*)NULL);
     } else {
         execl(shell, exe, "-", (char*)NULL);
     }
     PLOGE("exec");
-    exit(-1);
+    exit(EXIT_SUCCESS);
 }
 
 int main(int argc, char *argv[])
 {
     struct stat st;
-    char buf[64], *result;
-    int i;
-    int dballow;
+    static int socket_serv_fd = -1;
+    char buf[64], shell[PATH_MAX], *result;
+    int i, dballow;
+    unsigned req_uid;
 
     for (i = 1; i < argc; i++) {
-        if (!strcmp(argv[i], "-c")) {
+        if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--command")) {
             if (++i < argc) {
                 su_to.command = argv[i];
             } else {
-                deny();
+                usage();
             }
-        } else if (!strcmp(argv[i], "-s")) {
+        } else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--shell")) {
             if (++i < argc) {
                 strcpy(shell, argv[i]);
             } else {
-                deny();
+                usage();
             }
-        } else if (!strcmp(argv[i], "-v")) {
+        } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--version")) {
             printf("%s\n", VERSION);
-            exit(-1);
-        } else if (!strcmp(argv[i], "-")) {
+            exit(EXIT_SUCCESS);
+        } else if (!strcmp(argv[i], "-V")) {
+            printf("%d\n", VERSION_CODE);
+            exit(EXIT_SUCCESS);
+        } else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
+            usage();
+        } else if (!strcmp(argv[i], "-") || !strcmp(argv[i], "-l") ||
+                !strcmp(argv[i], "--login")) {
             ++i;
             break;
         } else {
@@ -427,7 +339,7 @@ int main(int argc, char *argv[])
         }
     }
     if (i < argc-1) {
-        deny();
+        usage();
     }
     if (i == argc-1) {
         struct passwd *pw;
@@ -439,10 +351,12 @@ int main(int argc, char *argv[])
         }
     }
 
-    from_init(&su_from);
+    if (from_init(&su_from) < 0) {
+        deny();
+    }
 
     if (su_from.uid == AID_ROOT)
-        allow(0);
+        allow(shell);
 
     if (stat(REQUESTOR_DATA_PATH, &st) < 0) {
         PLOGE("stat");
@@ -451,35 +365,41 @@ int main(int argc, char *argv[])
 
     if (st.st_gid != st.st_uid)
     {
-        LOGE("Bad uid/gid %d/%d for Superuser Requestor application", (int)st.st_uid, (int)st.st_gid);
+        LOGE("Bad uid/gid %d/%d for Superuser Requestor application",
+                (int)st.st_uid, (int)st.st_gid);
         deny();
     }
 
     req_uid = st.st_uid;
 
-    if (from_init(&su_from) < 0) {
-        deny();
-    }
-
     if (mkdir(REQUESTOR_CACHE_PATH, 0771) >= 0) {
         chown(REQUESTOR_CACHE_PATH, req_uid, req_uid);
     }
 
+    LOGE("sudb - Opening database");
     db = database_init();
     if (!db) {
-        deny();
+        LOGE("sudb - Could not open database, prompt user");
+        // if the database could not be opened, we can assume we need to
+        // prompt the user
+        dballow = DB_INTERACTIVE;
+    } else {
+        LOGE("sudb - Database opened");
+        dballow = database_check(db, &su_from, &su_to);
+        // Close the database, we're done with it. If it stays open,
+        // it will cause problems
+        sqlite3_close(db);
+        LOGE("sudb - Database closed");
     }
 
-    dballow = database_check(db, &su_from, &su_to);
-    int notifications = check_notifications(db);
     switch (dballow) {
         case DB_DENY: deny();
-        case DB_ALLOW: allow(notifications);
+        case DB_ALLOW: allow(shell);
         case DB_INTERACTIVE: break;
         default: deny();
     }
 
-    socket_serv_fd = socket_create_temp();
+    socket_serv_fd = socket_create_temp(req_uid);
     if (socket_serv_fd < 0) {
         deny();
     }
@@ -490,7 +410,7 @@ int main(int argc, char *argv[])
     signal(SIGABRT, cleanup_signal);
     atexit(cleanup);
 
-    if (send_intent(&su_from, &su_to, socket_path, 0) < 0) {
+    if (send_intent(&su_from, &su_to, socket_path, -1, 0) < 0) {
         deny();
     }
 
@@ -506,7 +426,7 @@ int main(int argc, char *argv[])
     if (!strcmp(result, "DENY")) {
         deny();
     } else if (!strcmp(result, "ALLOW")) {
-        allow(notifications);
+        allow(shell);
     } else {
         LOGE("unknown response from Superuser Requestor: %s", result);
         deny();
