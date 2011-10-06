@@ -355,7 +355,7 @@ int main(int argc, char *argv[])
         deny();
     }
 
-    if (su_from.uid == AID_ROOT)
+    if (su_from.uid == AID_ROOT || su_from.uid == AID_SHELL)
         allow(shell);
 
     if (stat(REQUESTOR_DATA_PATH, &st) < 0) {
