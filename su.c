@@ -318,7 +318,8 @@ int main(int argc, char *argv[])
             }
         } else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--shell")) {
             if (++i < argc) {
-                strcpy(shell, argv[i]);
+                strncpy(shell, argv[i], sizeof(shell));
+                shell[sizeof(shell) - 1] = 0;
             } else {
                 usage();
             }
