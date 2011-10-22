@@ -80,12 +80,17 @@ int send_intent(struct su_initiator *from, struct su_request *to, const char *so
         int oldPos = data.dataPosition();
         data.writeInt32(0x4C444E42); // 'B' 'N' 'D' 'L'
         { /* writeMapInternal */
-            data.writeInt32(6); /* writeMapInternal - size */
+            data.writeInt32(7); /* writeMapInternal - size */
 
             data.writeInt32(VAL_STRING);
             data.writeString16(String16("caller_uid"));
             data.writeInt32(VAL_INTEGER);
             data.writeInt32(from->uid);
+
+            data.writeInt32(VAL_STRING);
+            data.writeString16(String16("caller_bin"));
+            data.writeInt32(VAL_STRING);
+            data.writeString16(String16(from->bin));
 
             data.writeInt32(VAL_STRING);
             data.writeString16(String16("desired_uid"));

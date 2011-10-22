@@ -48,7 +48,7 @@ extern char* _mktemp(char*); /* mktemp doesn't link right.  Don't ask me why. */
 extern sqlite3 *database_init();
 extern int database_check(sqlite3*, struct su_initiator*, struct su_request*);
 
-/* Not lazy anymore, just need these in too many places */
+/* Still lazt, will fix this */
 static char *socket_path = NULL;
 static sqlite3 *db = NULL;
 
@@ -318,7 +318,8 @@ int main(int argc, char *argv[])
             }
         } else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--shell")) {
             if (++i < argc) {
-                strcpy(shell, argv[i]);
+                strncpy(shell, argv[i], sizeof(shell));
+                shell[sizeof(shell) - 1] = 0;
             } else {
                 usage();
             }
@@ -351,9 +352,11 @@ int main(int argc, char *argv[])
         }
     }
 
-    from_init(&su_from);
+    if (from_init(&su_from) < 0) {
+        deny();
+    }
 
-    if (su_from.uid == AID_ROOT)
+    if (su_from.uid == AID_ROOT || su_from.uid == AID_SHELL)
         allow(shell);
 
     if (stat(REQUESTOR_DATA_PATH, &st) < 0) {
@@ -370,13 +373,13 @@ int main(int argc, char *argv[])
 
     req_uid = st.st_uid;
 
-    if (from_init(&su_from) < 0) {
-        deny();
-    }
-
     if (mkdir(REQUESTOR_CACHE_PATH, 0771) >= 0) {
         chown(REQUESTOR_CACHE_PATH, req_uid, req_uid);
     }
+
+    setgroups(0, NULL);
+    setegid(st.st_gid);
+    seteuid(st.st_uid);
 
     LOGE("sudb - Opening database");
     db = database_init();
@@ -391,14 +394,15 @@ int main(int argc, char *argv[])
         // Close the database, we're done with it. If it stays open,
         // it will cause problems
         sqlite3_close(db);
+        db = NULL;
         LOGE("sudb - Database closed");
     }
 
     switch (dballow) {
-        case DB_DENY: LOGE("denying"); deny();
-        case DB_ALLOW: LOGE("allowing"); allow(shell);
-        case DB_INTERACTIVE: LOGE("asking"); break;
-        default: LOGE("default, denying"); deny();
+        case DB_DENY: deny();
+        case DB_ALLOW: allow(shell);
+        case DB_INTERACTIVE: break;
+        default: deny();
     }
 
     socket_serv_fd = socket_create_temp(req_uid);
