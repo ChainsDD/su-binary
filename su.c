@@ -396,6 +396,7 @@ int main(int argc, char *argv[])
         // Close the database, we're done with it. If it stays open,
         // it will cause problems
         sqlite3_close(db);
+        db = NULL;
         LOGE("sudb - Database closed");
     }
 
