@@ -318,7 +318,8 @@ int main(int argc, char *argv[])
             }
         } else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--shell")) {
             if (++i < argc) {
-                strcpy(shell, argv[i]);
+                strncpy(shell, argv[i], sizeof(shell));
+                shell[sizeof(shell) - 1] = 0;
             } else {
                 usage();
             }
@@ -395,6 +396,7 @@ int main(int argc, char *argv[])
         // Close the database, we're done with it. If it stays open,
         // it will cause problems
         sqlite3_close(db);
+        db = NULL;
         LOGE("sudb - Database closed");
     }
 
