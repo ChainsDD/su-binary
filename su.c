@@ -296,7 +296,6 @@ int main(int argc, char *argv[])
     static int socket_serv_fd = -1;
     char buf[64], shell[PATH_MAX], *result;
     int i, dballow;
-    unsigned req_uid;
     mode_t orig_umask;
 
     for (i = 1; i < argc; i++) {
@@ -363,10 +362,8 @@ int main(int argc, char *argv[])
         deny();
     }
 
-    req_uid = st.st_uid;
-
     if (mkdir(REQUESTOR_CACHE_PATH, 0770) >= 0) {
-        chown(REQUESTOR_CACHE_PATH, req_uid, req_uid);
+        chown(REQUESTOR_CACHE_PATH, st.st_uid, st.st_gid);
     }
 
     setgroups(0, NULL);
