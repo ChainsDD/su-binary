@@ -289,7 +289,6 @@ static void allow(char *shell)
         strcpy(shell , "/system/bin/sh");
     }
     exe = strrchr (shell, '/') + 1;
-    setgroups(0, NULL);
     setresgid(to->uid, to->uid, to->uid);
     setresuid(to->uid, to->uid, to->uid);
     LOGD("%u %s executing %u %s using shell %s : %s", from->uid, from->bin,
