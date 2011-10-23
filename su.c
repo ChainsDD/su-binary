@@ -71,6 +71,7 @@ static int from_init(struct su_initiator *from)
     int fd;
     ssize_t len;
     int i;
+    int err;
 
     from->uid = getuid();
     from->pid = getppid();
@@ -83,9 +84,10 @@ static int from_init(struct su_initiator *from)
         return -1;
     }
     len = read(fd, args, sizeof(args));
+    err = errno;
     close(fd);
     if (len < 0 || len == sizeof(args)) {
-        PLOGE("Reading command line");
+        PLOGEV("Reading command line", err);
         return -1;
     }
 
