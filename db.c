@@ -48,7 +48,7 @@ int database_check(sqlite3 *db, struct su_initiator *from, struct su_request *to
     char *zErrmsg;
     char **result;
     int nrow,ncol;
-    int allow;
+    int allow = DB_INTERACTIVE;
     struct timeval tv;
 
     sqlite3_snprintf(
@@ -70,7 +70,7 @@ int database_check(sqlite3 *db, struct su_initiator *from, struct su_request *to
     }
     
     if (nrow == 0 || ncol != 3)
-        return DB_INTERACTIVE;
+        goto out;
         
     if (strcmp(result[0], "_id") == 0 && strcmp(result[2], "allow") == 0) {
         if (strcmp(result[5], "1") == 0) {
@@ -80,10 +80,10 @@ int database_check(sqlite3 *db, struct su_initiator *from, struct su_request *to
         } else {
             allow = DB_DENY;
         }
-        return allow;
     }
 
+out:
     sqlite3_free_table(result);
     
-    return DB_INTERACTIVE;
+    return allow;
 }
