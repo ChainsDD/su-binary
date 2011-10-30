@@ -224,7 +224,6 @@ static int socket_accept(int serv_fd)
 static int socket_receive_result(int serv_fd, char *result, ssize_t result_len)
 {
     ssize_t len;
-    char buf[64];
     
     for (;;) {
         int fd = socket_accept(serv_fd);
