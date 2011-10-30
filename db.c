@@ -28,8 +28,7 @@
 sqlite3 *database_init()
 {
     sqlite3 *db;
-    int version, rc, databaseStatus = 0;
-    char *zErrMsg = 0;
+    int rc;
 
     rc = sqlite3_open_v2(REQUESTOR_DATABASE_PATH, &db, SQLITE_OPEN_READONLY, NULL);
     if ( rc ) {
@@ -49,7 +48,6 @@ int database_check(sqlite3 *db, struct su_initiator *from, struct su_request *to
     char **result;
     int nrow,ncol;
     int allow = DB_INTERACTIVE;
-    struct timeval tv;
 
     sqlite3_snprintf(
         sizeof(sql), sql,
