@@ -146,10 +146,10 @@ static void cleanup_signal(int sig)
     exit(sig);
 }
 
-static int socket_create_temp(unsigned req_uid)
+static int socket_create_temp(void)
 {
     static char buf[PATH_MAX];
-    int fd, err;
+    int fd;
 
     struct sockaddr_un sun;
 
@@ -174,18 +174,6 @@ static int socket_create_temp(unsigned req_uid)
         } else {
             break;
         }
-    }
-
-    if (chmod(sun.sun_path, 0600) < 0) {
-        PLOGE("chmod(socket)");
-        unlink(sun.sun_path);
-        return -1;
-    }
-
-    if (chown(sun.sun_path, req_uid, req_uid) < 0) {
-        PLOGE("chown(socket)");
-        unlink(sun.sun_path);
-        return -1;
     }
 
     if (listen(fd, 1) < 0) {
@@ -276,12 +264,13 @@ static void deny(void)
     exit(EXIT_FAILURE);
 }
 
-static void allow(char *shell)
+static void allow(char *shell, mode_t mask)
 {
     struct su_initiator *from = &su_from;
     struct su_request *to = &su_to;
     char *exe = NULL;
 
+    umask(mask);
     send_intent(&su_from, &su_to, "", 1, 1);
 
     if (!strcmp(shell, "")) {
@@ -308,6 +297,7 @@ int main(int argc, char *argv[])
     char buf[64], shell[PATH_MAX], *result;
     int i, dballow;
     unsigned req_uid;
+    mode_t orig_umask;
 
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--command")) {
@@ -356,8 +346,10 @@ int main(int argc, char *argv[])
         deny();
     }
 
+    orig_umask = umask(027);
+
     if (su_from.uid == AID_ROOT || su_from.uid == AID_SHELL)
-        allow(shell);
+        allow(shell, orig_umask);
 
     if (stat(REQUESTOR_DATA_PATH, &st) < 0) {
         PLOGE("stat");
@@ -373,7 +365,7 @@ int main(int argc, char *argv[])
 
     req_uid = st.st_uid;
 
-    if (mkdir(REQUESTOR_CACHE_PATH, 0771) >= 0) {
+    if (mkdir(REQUESTOR_CACHE_PATH, 0770) >= 0) {
         chown(REQUESTOR_CACHE_PATH, req_uid, req_uid);
     }
 
@@ -400,12 +392,12 @@ int main(int argc, char *argv[])
 
     switch (dballow) {
         case DB_DENY: deny();
-        case DB_ALLOW: allow(shell);
+        case DB_ALLOW: allow(shell, orig_umask);
         case DB_INTERACTIVE: break;
         default: deny();
     }
     
-    socket_serv_fd = socket_create_temp(req_uid);
+    socket_serv_fd = socket_create_temp();
     if (socket_serv_fd < 0) {
         deny();
     }
@@ -432,7 +424,7 @@ int main(int argc, char *argv[])
     if (!strcmp(result, "DENY")) {
         deny();
     } else if (!strcmp(result, "ALLOW")) {
-        allow(shell);
+        allow(shell, orig_umask);
     } else {
         LOGE("unknown response from Superuser Requestor: %s", result);
         deny();
