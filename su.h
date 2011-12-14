@@ -32,8 +32,8 @@
 
 #define SOCKET_PATH_TEMPLATE REQUESTOR_CACHE_PATH "/.socketXXXXXX"
 
-#define VERSION "3.0.1"
-#define VERSION_CODE 12
+#define VERSION "3.0.3"
+#define VERSION_CODE 14
 
 #define DATABASE_VERSION 6
 
