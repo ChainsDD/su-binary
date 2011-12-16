@@ -18,8 +18,9 @@
 #ifndef SU_h 
 #define SU_h 1
 
-#define REQUESTOR_DATA_PATH "/data/data/com.noshufou.android.su"
-#define REQUESTOR_CACHE_PATH REQUESTOR_DATA_PATH "/cache"
+#define REQUESTOR "com.noshufou.android.su"
+#define REQUESTOR_DATA_PATH "/data/data/" REQUESTOR
+#define REQUESTOR_CACHE_PATH "/dev/" REQUESTOR
 
 #define REQUESTOR_DATABASES_PATH REQUESTOR_DATA_PATH "/databases"
 #define REQUESTOR_DATABASE_PATH REQUESTOR_DATABASES_PATH "/permissions.sqlite"

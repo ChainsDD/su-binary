@@ -362,9 +362,8 @@ int main(int argc, char *argv[])
         deny();
     }
 
-    if (mkdir(REQUESTOR_CACHE_PATH, 0770) >= 0) {
-        chown(REQUESTOR_CACHE_PATH, st.st_uid, st.st_gid);
-    }
+    mkdir(REQUESTOR_CACHE_PATH, 0770);
+    chown(REQUESTOR_CACHE_PATH, st.st_uid, st.st_gid);
 
     setgroups(0, NULL);
     setegid(st.st_gid);
