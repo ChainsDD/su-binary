@@ -57,6 +57,8 @@ static struct su_initiator su_from = {
     .uid = 0,
     .bin = "",
     .args = "",
+    .env = "",
+    .envp = { NULL, },
 };
 
 static struct su_request su_to = {
@@ -72,6 +74,7 @@ static int from_init(struct su_initiator *from)
     ssize_t len;
     int i;
     int err;
+    size_t j;
 
     from->uid = getuid();
     from->pid = getppid();
@@ -126,6 +129,30 @@ static int from_init(struct su_initiator *from)
     strncpy(from->bin, argv0, sizeof(from->bin));
     from->bin[sizeof(from->bin)-1] = '\0';
 
+    /* Get the environment of the calling process */
+    snprintf(path, sizeof(path), "/proc/%u/environ", from->pid);
+    fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        PLOGE("Opening environment");
+        goto out;
+    }
+    len = read(fd, from->env, sizeof(from->env));
+    close(fd);
+    if (len < 0 || len == sizeof(from->env)) {
+        PLOGE("Reading environment");
+        goto out;
+    }
+    from->env[len] = '\0';
+
+    from->envp[0] = &from->env[0];
+    for (i = 0, j = 0; i < len && j < ARRAY_SIZE(from->envp); i++) {
+        if (from->env[i] == '\0') {
+                 from->envp[++j] = &from->env[i + 1];
+        }
+    }
+    from->envp[j] = NULL;
+
+out:
     return 0;
 }
 
@@ -269,6 +296,7 @@ static void allow(char *shell, mode_t mask)
     struct su_initiator *from = &su_from;
     struct su_request *to = &su_to;
     char *exe = NULL;
+    char **envp = environ;
 
     umask(mask);
     send_intent(&su_from, &su_to, "", 1, 1);
@@ -277,14 +305,17 @@ static void allow(char *shell, mode_t mask)
         strcpy(shell , "/system/bin/sh");
     }
     exe = strrchr (shell, '/') + 1;
+    if (from->envp[0]) {
+        envp = from->envp;
+    }
     setresgid(to->uid, to->uid, to->uid);
     setresuid(to->uid, to->uid, to->uid);
     LOGD("%u %s executing %u %s using shell %s : %s", from->uid, from->bin,
             to->uid, to->command, shell, exe);
     if (strcmp(to->command, DEFAULT_COMMAND)) {
-        execl(shell, exe, "-c", to->command, (char*)NULL);
+        execle(shell, exe, "-c", to->command, (char*)NULL, envp);
     } else {
-        execl(shell, exe, "-", (char*)NULL);
+        execle(shell, exe, "-", (char*)NULL, envp);
     }
     PLOGE("exec");
     exit(EXIT_SUCCESS);

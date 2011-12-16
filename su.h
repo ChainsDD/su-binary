@@ -38,6 +38,8 @@ struct su_initiator {
     unsigned uid;
     char bin[PATH_MAX];
     char args[4096];
+    char env[ARG_MAX];
+    char *envp[512];
 };
 
 struct su_request {
@@ -64,5 +66,7 @@ extern int send_intent(struct su_initiator *from, struct su_request *to, const c
 
 #define PLOGE(fmt,args...) LOGE(fmt " failed with %d: %s" , ## args , errno, strerror(errno))
 #define PLOGEV(fmt,err,args...) LOGE(fmt " failed with %d: %s" , ## args , err, strerror(err))
+
+#define ARRAY_SIZE(array)	(sizeof(array) / sizeof(array[0]))
 
 #endif
