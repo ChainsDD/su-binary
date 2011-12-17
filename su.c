@@ -39,18 +39,12 @@
 #include <private/android_filesystem_config.h>
 #include <cutils/log.h>
 
-#include <sqlite3.h>
-
 #include "su.h"
 
 //extern char* _mktemp(char*); /* mktemp doesn't link right.  Don't ask me why. */
 
-extern sqlite3 *database_init();
-extern int database_check(sqlite3*, struct su_initiator*, struct su_request*);
-
 /* Still lazt, will fix this */
 static char *socket_path = NULL;
-static sqlite3 *db = NULL;
 
 static struct su_initiator su_from = {
     .pid = -1,
@@ -137,7 +131,6 @@ static void socket_cleanup(void)
 static void cleanup(void)
 {
     socket_cleanup();
-    if (db) sqlite3_close(db);
 }
 
 static void cleanup_signal(int sig)
@@ -396,23 +389,7 @@ int main(int argc, char *argv[])
     setegid(st.st_gid);
     seteuid(st.st_uid);
 
-    LOGE("sudb - Opening database");
-    db = database_init();
-    if (!db) {
-        LOGE("sudb - Could not open database, prompt user");
-        // if the database could not be opened, we can assume we need to
-        // prompt the user
-        dballow = DB_INTERACTIVE;
-    } else {
-        LOGE("sudb - Database opened");
-        dballow = database_check(db, &su_from, &su_to);
-        // Close the database, we're done with it. If it stays open,
-        // it will cause problems
-        sqlite3_close(db);
-        db = NULL;
-        LOGE("sudb - Database closed");
-    }
-
+    dballow = database_check(&su_from, &su_to);
     switch (dballow) {
         case DB_DENY: deny();
         case DB_ALLOW: allow(shell, orig_umask);

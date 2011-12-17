@@ -53,6 +53,8 @@ enum {
     DB_ALLOW
 };
 
+extern int database_check(struct su_initiator*, struct su_request*);
+
 extern int send_intent(struct su_initiator *from, struct su_request *to, const char *socket_path, int allow, int type);
 
 #if 0
