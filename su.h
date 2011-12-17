@@ -33,6 +33,7 @@
 #define VERSION_CODE 15
 
 #define DATABASE_VERSION 6
+#define PROTO_VERSION 0
 
 struct su_initiator {
     pid_t pid;

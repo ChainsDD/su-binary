@@ -209,26 +209,53 @@ static int socket_accept(int serv_fd)
     return fd;
 }
 
-static int socket_receive_result(int serv_fd, char *result, ssize_t result_len)
+static int socket_send_request(int fd, struct su_initiator *from, struct su_request *to)
+{
+    size_t len;
+    size_t bin_size, cmd_size;
+
+#define write_token(fd, data)				\
+do {							\
+	uint32_t __data = htonl(data);			\
+	size_t __count = sizeof(__data);		\
+	size_t __len = write((fd), &__data, __count);	\
+	if (__len != __count) {				\
+		PLOGE("write(" #data ")");		\
+		return -1;				\
+	}						\
+} while (0)
+
+    write_token(fd, PROTO_VERSION);
+    write_token(fd, PATH_MAX);
+    write_token(fd, ARG_MAX);
+    write_token(fd, from->uid);
+    write_token(fd, to->uid);
+    bin_size = strlen(from->bin) + 1;
+    write_token(fd, bin_size);
+    len = write(fd, from->bin, bin_size);
+    if (len != bin_size) {
+        PLOGE("write(bin)");
+        return -1;
+    }
+    cmd_size = strlen(to->command) + 1;
+    write_token(fd, cmd_size);
+    len = write(fd, to->command, cmd_size);
+    if (len != cmd_size) {
+        PLOGE("write(cmd)");
+        return -1;
+    }
+    return 0;
+}
+
+static int socket_receive_result(int fd, char *result, ssize_t result_len)
 {
     ssize_t len;
     
-    for (;;) {
-        int fd = socket_accept(serv_fd);
-        if (fd < 0)
-            return -1;
-
-        len = read(fd, result, result_len-1);
-        if (len < 0) {
-            PLOGE("read(result)");
-            return -1;
-        }
-
-        if (len > 0) {
-            break;
-        }
+    len = read(fd, result, result_len-1);
+    if (len < 0) {
+        PLOGE("read(result)");
+        return -1;
     }
-
     result[len] = '\0';
 
     return 0;
@@ -293,7 +320,7 @@ static void allow(char *shell, mode_t mask)
 int main(int argc, char *argv[])
 {
     struct stat st;
-    static int socket_serv_fd = -1;
+    int socket_serv_fd, fd;
     char buf[64], shell[PATH_MAX], *result;
     int i, dballow;
     mode_t orig_umask;
@@ -408,14 +435,28 @@ int main(int argc, char *argv[])
         deny();
     }
 
-    if (socket_receive_result(socket_serv_fd, buf, sizeof(buf)) < 0) {
+    fd = socket_accept(socket_serv_fd);
+    if (fd < 0) {
+        deny();
+    }
+    if (socket_send_request(fd, &su_from, &su_to)) {
+        deny();
+    }
+    if (socket_receive_result(fd, buf, sizeof(buf))) {
         deny();
     }
 
+    close(fd);
     close(socket_serv_fd);
     socket_cleanup();
 
     result = buf;
+
+#define SOCKET_RESPONSE	"socket:"
+    if (strncmp(result, SOCKET_RESPONSE, sizeof(SOCKET_RESPONSE) - 1))
+        LOGW("SECURITY RISK: Requestor still receives credentials in intent");
+    else
+        result += sizeof(SOCKET_RESPONSE) - 1;
 
     if (!strcmp(result, "DENY")) {
         deny();
