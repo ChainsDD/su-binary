@@ -28,8 +28,7 @@
 sqlite3 *database_init()
 {
     sqlite3 *db;
-    int version, rc, databaseStatus = 0;
-    char *zErrMsg = 0;
+    int rc;
 
     rc = sqlite3_open_v2(REQUESTOR_DATABASE_PATH, &db, SQLITE_OPEN_READONLY, NULL);
     if ( rc ) {
@@ -48,8 +47,7 @@ int database_check(sqlite3 *db, struct su_initiator *from, struct su_request *to
     char *zErrmsg;
     char **result;
     int nrow,ncol;
-    int allow;
-    struct timeval tv;
+    int allow = DB_INTERACTIVE;
 
     sqlite3_snprintf(
         sizeof(sql), sql,
@@ -70,7 +68,7 @@ int database_check(sqlite3 *db, struct su_initiator *from, struct su_request *to
     }
     
     if (nrow == 0 || ncol != 3)
-        return DB_INTERACTIVE;
+        goto out;
         
     if (strcmp(result[0], "_id") == 0 && strcmp(result[2], "allow") == 0) {
         if (strcmp(result[5], "1") == 0) {
@@ -80,10 +78,10 @@ int database_check(sqlite3 *db, struct su_initiator *from, struct su_request *to
         } else {
             allow = DB_DENY;
         }
-        return allow;
     }
 
+out:
     sqlite3_free_table(result);
     
-    return DB_INTERACTIVE;
+    return allow;
 }
