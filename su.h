@@ -27,8 +27,6 @@
 
 #define DEFAULT_COMMAND "/system/bin/sh"
 
-#define SOCKET_PATH_TEMPLATE REQUESTOR_CACHE_PATH "/.socketXXXXXX"
-
 #define VERSION "3.0.3.2"
 #define VERSION_CODE 15
 

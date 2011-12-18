@@ -41,10 +41,8 @@
 
 #include "su.h"
 
-//extern char* _mktemp(char*); /* mktemp doesn't link right.  Don't ask me why. */
-
 /* Still lazt, will fix this */
-static char *socket_path = NULL;
+static char socket_path[PATH_MAX];
 
 static struct su_initiator su_from = {
     .pid = -1,
@@ -139,11 +137,9 @@ static void cleanup_signal(int sig)
     exit(sig);
 }
 
-static int socket_create_temp(void)
+static int socket_create_temp(char *path, size_t len)
 {
-    static char buf[PATH_MAX];
     int fd;
-
     struct sockaddr_un sun;
 
     fd = socket(AF_LOCAL, SOCK_STREAM, 0);
@@ -152,29 +148,32 @@ static int socket_create_temp(void)
         return -1;
     }
 
-    for (;;) {
-        memset(&sun, 0, sizeof(sun));
-        sun.sun_family = AF_LOCAL;
-        strcpy(buf, SOCKET_PATH_TEMPLATE);
-        socket_path = mktemp(buf);
-        snprintf(sun.sun_path, sizeof(sun.sun_path), "%s", socket_path);
+    memset(&sun, 0, sizeof(sun));
+    sun.sun_family = AF_LOCAL;
+    snprintf(path, len, "%s/.socket%d", REQUESTOR_CACHE_PATH, getpid());
+    snprintf(sun.sun_path, sizeof(sun.sun_path), "%s", path);
 
-        if (bind(fd, (struct sockaddr*)&sun, sizeof(sun)) < 0) {
-            if (errno != EADDRINUSE) {
-                PLOGE("bind");
-                return -1;
-            }
-        } else {
-            break;
-        }
+    /*
+     * Delete the socket to protect from situations when
+     * something bad occured previously and the kernel reused pid from that process.
+     * Small probability, isn't it.
+     */
+    unlink(sun.sun_path);
+
+    if (bind(fd, (struct sockaddr*)&sun, sizeof(sun)) < 0) {
+        PLOGE("bind");
+        goto err;
     }
 
     if (listen(fd, 1) < 0) {
         PLOGE("listen");
-        return -1;
+        goto err;
     }
 
     return fd;
+err:
+    close(fd);
+    return -1;
 }
 
 static int socket_accept(int serv_fd)
@@ -397,7 +396,7 @@ int main(int argc, char *argv[])
         default: deny();
     }
     
-    socket_serv_fd = socket_create_temp();
+    socket_serv_fd = socket_create_temp(socket_path, sizeof(socket_path));
     if (socket_serv_fd < 0) {
         deny();
     }
