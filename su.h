@@ -27,7 +27,13 @@
 
 #define DEFAULT_COMMAND "/system/bin/sh"
 
-#define VERSION "3.0.3.2"
+#ifdef SU_LEGACY_BUILD
+#define VERSION_EXTRA	"l"
+#else
+#define VERSION_EXTRA	""
+#endif
+
+#define VERSION "3.0.3.2" VERSION_EXTRA
 #define VERSION_CODE 15
 
 #define DATABASE_VERSION 6

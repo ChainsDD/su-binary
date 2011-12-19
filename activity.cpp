@@ -17,9 +17,15 @@
 
 #include <unistd.h>
 #include <android_runtime/ActivityManager.h>
+#ifdef SU_LEGACY_BUILD
+#include <utils/IBinder.h>
+#include <utils/IServiceManager.h>
+#include <utils/Parcel.h>
+#else
 #include <binder/IBinder.h>
 #include <binder/IServiceManager.h>
 #include <binder/Parcel.h>
+#endif
 #include <utils/String8.h>
 #include <assert.h>
 
