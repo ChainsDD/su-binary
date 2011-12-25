@@ -87,8 +87,8 @@ int send_intent(struct su_initiator *from, struct su_request *to, const char *so
     }
     { /* Extras */
         data.writeInt32(-1); /* dummy, will hold length */
-        int oldPos = data.dataPosition();
         data.writeInt32(0x4C444E42); // 'B' 'N' 'D' 'L'
+        int oldPos = data.dataPosition();
         { /* writeMapInternal */
             data.writeInt32(7); /* writeMapInternal - size */
 
@@ -128,14 +128,12 @@ int send_intent(struct su_initiator *from, struct su_request *to, const char *so
             data.writeInt32(VERSION_CODE);
         }
         int newPos = data.dataPosition();
-        data.setDataPosition(oldPos - 4);
+        data.setDataPosition(oldPos - 8);
         data.writeInt32(newPos - oldPos); /* length */
         data.setDataPosition(newPos);
     }
 
     data.writeString16(NULL, 0); /* resolvedType */
-
-    data.writeInt32(-1); /* Not sure what this is for, but it prevents a warning */
 
     data.writeStrongBinder(NULL); /* resultTo */
     data.writeInt32(-1); /* resultCode */
@@ -146,7 +144,6 @@ int send_intent(struct su_initiator *from, struct su_request *to, const char *so
     data.writeString16(String16("com.noshufou.android.su.RESPOND")); /* perm */
     data.writeInt32(0); /* serialized */
     data.writeInt32(0); /* sticky */
-    data.writeInt32(-1);
     
     status_t ret = am->transact(BROADCAST_INTENT_TRANSACTION, data, &reply);
     if (ret < START_SUCCESS) return -1;
