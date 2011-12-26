@@ -76,11 +76,11 @@ int send_intent(struct su_initiator *from, struct su_request *to, const char *so
         data.writeString16(NULL, 0); /* package name - DONUT ONLY, NOT IN CUPCAKE. */
     }
     data.writeString16(NULL, 0); /* ComponentName - package */
-    data.writeInt32(0); /* Categories - size */
     if (sdk_version >= 7) {
         // added in eclair rev 7
-        data.writeInt32(0);
+        data.writeInt32(0); /* Rect - the bounds of the sender */
     }
+    data.writeInt32(0); /* Categories - size */
     if (sdk_version >= 15) {
         // added in IceCreamSandwich 4.0.3
         data.writeInt32(0); /* Selector */
