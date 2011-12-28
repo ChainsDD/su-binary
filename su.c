@@ -288,6 +288,7 @@ static void allow(char *shell, mode_t mask)
     struct su_initiator *from = &su_from;
     struct su_request *to = &su_to;
     char *exe = NULL;
+    int err;
 
     umask(mask);
     send_intent(&su_from, &su_to, "", 1, 1);
@@ -306,8 +307,10 @@ static void allow(char *shell, mode_t mask)
     } else {
         execl(shell, exe, "-", (char*)NULL);
     }
+    err = errno;
     PLOGE("exec");
-    exit(EXIT_SUCCESS);
+    fprintf(stderr, "Cannot execute %s: %s\n", shell, strerror(err));
+    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char *argv[])
