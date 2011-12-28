@@ -28,11 +28,10 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <endian.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <getopt.h>
 #include <stdint.h>
 #include <pwd.h>
 
@@ -253,23 +252,22 @@ static int socket_receive_result(int fd, char *result, ssize_t result_len)
     return 0;
 }
 
-static void usage(void)
+static void usage(int status)
 {
-    printf("Usage: su [options] [LOGIN]\n\n");
-    printf("Options:\n");
-    printf("  -c, --command COMMAND         pass COMMAND to the invoked shell\n");
-    printf("  -h, --help                    display this help message and exit\n");
-    printf("  -, -l, --login                make the shell a login shell\n");
-    // I'll look more into this to figure out what it's about,
-    // maybe implement it later
-//    printf("  -m, -p,\n");
-//    printf("  --preserve-environment        do not reset environment variables, and\n");
-//    printf("                                keep the same shell\n");
-    printf("  -s, --shell SHELL             use SHELL instead of the default in passwd\n");
-    printf("  -v, --version                 display version number and exit\n");
-    printf("  -V                            display version code and exit. this is\n");
-    printf("                                used almost exclusively by Superuser.apk\n");
-    exit(EXIT_SUCCESS);
+    FILE *stream = (status == EXIT_SUCCESS) ? stdout : stderr;
+
+    fprintf(stream,
+    "Usage: su [options] [LOGIN]\n\n"
+    "Options:\n"
+    "  -c, --command COMMAND         pass COMMAND to the invoked shell\n"
+    "  -h, --help                    display this help message and exit\n"
+    "  -, -l, --login, -m, -p,\n"
+    "  --preserve-environment        do nothing, kept for compatibility\n"
+    "  -s, --shell SHELL             use SHELL instead of the default " DEFAULT_COMMAND "\n"
+    "  -v, --version                 display version number and exit\n"
+    "  -V                            display version code and exit,\n"
+    "                                this is used almost exclusively by Superuser.apk\n");
+    exit(status);
 }
 
 static void deny(void)
@@ -293,8 +291,8 @@ static void allow(char *shell, mode_t mask)
     umask(mask);
     send_intent(&su_from, &su_to, "", 1, 1);
 
-    if (!strcmp(shell, "")) {
-        strcpy(shell , DEFAULT_COMMAND);
+    if (!shell) {
+        shell = DEFAULT_COMMAND;
     }
     exe = strrchr (shell, '/');
     exe = (exe) ? exe + 1 : shell;
@@ -317,48 +315,61 @@ int main(int argc, char *argv[])
 {
     struct stat st;
     int socket_serv_fd, fd;
-    char buf[64], shell[PATH_MAX], *result;
-    int i, dballow;
+    char buf[64], *shell = NULL, *result;
+    int c, dballow;
     mode_t orig_umask;
+    struct option long_opts[] = {
+        { "command",			required_argument,	NULL, 'c' },
+        { "help",			no_argument,		NULL, 'h' },
+        { "login",			no_argument,		NULL, 'l' },
+        { "preserve-environment",	no_argument,		NULL, 'p' },
+        { "shell",			required_argument,	NULL, 's' },
+        { "version",			no_argument,		NULL, 'v' },
+        { NULL, 0, NULL, 0 },
+    };
 
-    for (i = 1; i < argc; i++) {
-        if (!strcmp(argv[i], "-c") || !strcmp(argv[i], "--command")) {
-            if (++i < argc) {
-                su_to.command = argv[i];
-            } else {
-                usage();
-            }
-        } else if (!strcmp(argv[i], "-s") || !strcmp(argv[i], "--shell")) {
-            if (++i < argc) {
-                strncpy(shell, argv[i], sizeof(shell));
-                shell[sizeof(shell) - 1] = 0;
-            } else {
-                usage();
-            }
-        } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--version")) {
-            printf("%s\n", VERSION);
-            exit(EXIT_SUCCESS);
-        } else if (!strcmp(argv[i], "-V")) {
+    while ((c = getopt_long(argc, argv, "c:hlmps:Vv", long_opts, NULL)) != -1) {
+        switch(c) {
+        case 'c':
+            su_to.command = optarg;
+            break;
+        case 'h':
+            usage(EXIT_SUCCESS);
+            break;
+        case 'l':    /* for compatibility */
+        case 'm':
+        case 'p':
+            break;
+        case 's':
+            shell = optarg;
+            break;
+        case 'V':
             printf("%d\n", VERSION_CODE);
             exit(EXIT_SUCCESS);
-        } else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
-            usage();
-        } else if (!strcmp(argv[i], "-") || !strcmp(argv[i], "-l") ||
-                !strcmp(argv[i], "--login")) {
-            ++i;
-            break;
-        } else {
-            break;
+        case 'v':
+            printf("%s\n", VERSION);
+            exit(EXIT_SUCCESS);
+        default:
+            /* Bionic getopt_long doesn't terminate its error output by newline */
+            fprintf(stderr, "\n");
+            usage(2);
         }
     }
-    if (i < argc-1) {
-        usage();
+    if (optind < argc && !strcmp(argv[optind], "-")) {
+        optind++;
     }
-    if (i == argc-1) {
+    /*
+     * Other su implementations pass the remaining args to the shell.
+     * -- maybe implement this later
+     */
+    if (optind < argc - 1) {
+        usage(2);
+    }
+    if (optind == argc - 1) {
         struct passwd *pw;
-        pw = getpwnam(argv[i]);
+        pw = getpwnam(argv[optind]);
         if (!pw) {
-            su_to.uid = atoi(argv[i]);
+            su_to.uid = atoi(argv[optind]);
         } else {
             su_to.uid = pw->pw_uid;
         }
