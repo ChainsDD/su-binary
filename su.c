@@ -295,7 +295,8 @@ static void allow(char *shell, mode_t mask)
     if (!strcmp(shell, "")) {
         strcpy(shell , DEFAULT_COMMAND);
     }
-    exe = strrchr (shell, '/') + 1;
+    exe = strrchr (shell, '/');
+    exe = (exe) ? exe + 1 : shell;
     setresgid(to->uid, to->uid, to->uid);
     setresuid(to->uid, to->uid, to->uid);
     LOGD("%u %s executing %u %s using shell %s : %s", from->uid, from->bin,
