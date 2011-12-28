@@ -293,7 +293,7 @@ static void allow(char *shell, mode_t mask)
     send_intent(&su_from, &su_to, "", 1, 1);
 
     if (!strcmp(shell, "")) {
-        strcpy(shell , "/system/bin/sh");
+        strcpy(shell , DEFAULT_COMMAND);
     }
     exe = strrchr (shell, '/') + 1;
     setresgid(to->uid, to->uid, to->uid);
