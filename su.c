@@ -369,7 +369,16 @@ int main(int argc, char *argv[])
         struct passwd *pw;
         pw = getpwnam(argv[optind]);
         if (!pw) {
-            su_to.uid = atoi(argv[optind]);
+            char *endptr;
+
+            /* It seems we shouldn't do this at all */
+            errno = 0;
+            su_to.uid = strtoul(argv[optind], &endptr, 10);
+            if (errno || *endptr) {
+                LOGE("Unknown id: %s\n", argv[optind]);
+                fprintf(stderr, "Unknown id: %s\n", argv[optind]);
+                exit(EXIT_FAILURE);
+            }
         } else {
             su_to.uid = pw->pw_uid;
         }
