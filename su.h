@@ -33,8 +33,8 @@
 #define VERSION_EXTRA	""
 #endif
 
-#define VERSION "3.0.3.2" VERSION_EXTRA
-#define VERSION_CODE 15
+#define VERSION "3.1" VERSION_EXTRA
+#define VERSION_CODE 16
 
 #define DATABASE_VERSION 6
 #define PROTO_VERSION 0
