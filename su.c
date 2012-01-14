@@ -296,8 +296,14 @@ static void allow(char *shell, mode_t mask)
     }
     exe = strrchr (shell, '/');
     exe = (exe) ? exe + 1 : shell;
-    setresgid(to->uid, to->uid, to->uid);
-    setresuid(to->uid, to->uid, to->uid);
+    if (setresgid(to->uid, to->uid, to->uid)) {
+        PLOGE("setresgid (%u)", to->uid);
+        exit(EXIT_FAILURE);
+    }
+    if (setresuid(to->uid, to->uid, to->uid)) {
+        PLOGE("setresuid (%u)", to->uid);
+        exit(EXIT_FAILURE);
+    }
     LOGD("%u %s executing %u %s using shell %s : %s", from->uid, from->bin,
             to->uid, to->command, shell, exe);
     if (strcmp(to->command, DEFAULT_COMMAND)) {
@@ -406,11 +412,23 @@ int main(int argc, char *argv[])
     }
 
     mkdir(REQUESTOR_CACHE_PATH, 0770);
-    chown(REQUESTOR_CACHE_PATH, st.st_uid, st.st_gid);
+    if (chown(REQUESTOR_CACHE_PATH, st.st_uid, st.st_gid)) {
+        PLOGE("chown (%s, %ld, %ld)", REQUESTOR_CACHE_PATH, st.st_uid, st.st_gid);
+        deny();
+    }
 
-    setgroups(0, NULL);
-    setegid(st.st_gid);
-    seteuid(st.st_uid);
+    if (setgroups(0, NULL)) {
+        PLOGE("setgroups");
+        deny();
+    }
+    if (setegid(st.st_gid)) {
+        PLOGE("setegid (%lu)", st.st_gid);
+        deny();
+    }
+    if (seteuid(st.st_uid)) {
+        PLOGE("seteuid (%lu)", st.st_uid);
+        deny();
+    }
 
     dballow = database_check(&su_from, &su_to);
     switch (dballow) {
