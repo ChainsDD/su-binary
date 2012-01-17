@@ -446,6 +446,8 @@ int main(int argc, char *argv[])
     signal(SIGHUP, cleanup_signal);
     signal(SIGPIPE, cleanup_signal);
     signal(SIGTERM, cleanup_signal);
+    signal(SIGQUIT, cleanup_signal);
+    signal(SIGINT, cleanup_signal);
     signal(SIGABRT, cleanup_signal);
     atexit(cleanup);
 
