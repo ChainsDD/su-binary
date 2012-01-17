@@ -286,6 +286,8 @@ static void allow(char *shell, mode_t mask)
     struct su_initiator *from = &su_from;
     struct su_request *to = &su_to;
     char *exe = NULL;
+    char *argv[4];
+    int argc = 0;
     int err;
 
     umask(mask);
@@ -306,11 +308,15 @@ static void allow(char *shell, mode_t mask)
     }
     LOGD("%u %s executing %u %s using shell %s : %s", from->uid, from->bin,
             to->uid, to->command, shell, exe);
+    argv[argc++] = exe;
     if (strcmp(to->command, DEFAULT_COMMAND)) {
-        execl(shell, exe, "-c", to->command, (char*)NULL);
+        argv[argc++] = "-c";
+        argv[argc++] = to->command;
     } else {
-        execl(shell, exe, "-", (char*)NULL);
+        argv[argc++] = "-";
     }
+    argv[argc] = NULL;
+    execv(shell, argv);
     err = errno;
     PLOGE("exec");
     fprintf(stderr, "Cannot execute %s: %s\n", shell, strerror(err));
