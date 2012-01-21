@@ -48,6 +48,7 @@ struct su_initiator {
 
 struct su_request {
     unsigned uid;
+    int doshell;
     char *command;
 };
 

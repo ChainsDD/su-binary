@@ -52,6 +52,7 @@ static struct su_initiator su_from = {
 
 static struct su_request su_to = {
     .uid = AID_ROOT,
+    .doshell = 1,
     .command = DEFAULT_COMMAND,
 };
 
@@ -309,11 +310,11 @@ static void allow(char *shell, mode_t mask)
     LOGD("%u %s executing %u %s using shell %s : %s", from->uid, from->bin,
             to->uid, to->command, shell, exe);
     argv[argc++] = exe;
-    if (strcmp(to->command, DEFAULT_COMMAND)) {
+    if (to->doshell) {
+        argv[argc++] = "-";
+    } else {
         argv[argc++] = "-c";
         argv[argc++] = to->command;
-    } else {
-        argv[argc++] = "-";
     }
     argv[argc] = NULL;
     execv(shell, argv);
@@ -344,6 +345,7 @@ int main(int argc, char *argv[])
         switch(c) {
         case 'c':
             su_to.command = optarg;
+            su_to.doshell = 0;
             break;
         case 'h':
             usage(EXIT_SUCCESS);
