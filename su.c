@@ -134,7 +134,7 @@ static void cleanup(void)
 static void cleanup_signal(int sig)
 {
     socket_cleanup();
-    exit(sig);
+    exit(128 + sig);
 }
 
 static int socket_create_temp(char *path, size_t len)
