@@ -52,6 +52,7 @@ static struct su_initiator su_from = {
 
 static struct su_request su_to = {
     .uid = AID_ROOT,
+    .login = 0,
     .doshell = 1,
     .command = DEFAULT_COMMAND,
 };
@@ -299,6 +300,17 @@ static void allow(char *shell, mode_t mask)
     }
     exe = strrchr (shell, '/');
     exe = (exe) ? exe + 1 : shell;
+    if (to->login) {
+        int s = strlen(exe) + 2;
+        char *p = malloc(s);
+
+        if (!p)
+            exit(EXIT_FAILURE);
+
+        *p = '-';
+        strcpy(p + 1, exe);
+        exe = p;
+    }
     if (setresgid(to->uid, to->uid, to->uid)) {
         PLOGE("setresgid (%u)", to->uid);
         exit(EXIT_FAILURE);
@@ -350,8 +362,10 @@ int main(int argc, char *argv[])
         case 'h':
             usage(EXIT_SUCCESS);
             break;
-        case 'l':    /* for compatibility */
-        case 'm':
+        case 'l':
+            su_to.login = 1;
+            break;
+        case 'm':    /* for compatibility */
         case 'p':
             break;
         case 's':
@@ -370,6 +384,7 @@ int main(int argc, char *argv[])
         }
     }
     if (optind < argc && !strcmp(argv[optind], "-")) {
+        su_to.login = 1;
         optind++;
     }
     /*
