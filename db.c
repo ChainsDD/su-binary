@@ -23,9 +23,7 @@
 
 #include "su.h"
 
-// { int* pint; pint=(int*)data; ++(*pint); }
-
-static sqlite3 *db_init()
+static sqlite3 *db_init(void)
 {
     sqlite3 *db;
     int rc;
@@ -41,7 +39,7 @@ static sqlite3 *db_init()
     return db;
 }
 
-static int db_check(sqlite3 *db, struct su_context *ctx)
+static int db_check(sqlite3 *db, const struct su_context *ctx)
 {
     char sql[4096];
     char *zErrmsg;
@@ -86,7 +84,7 @@ out:
     return allow;
 }
 
-int database_check(struct su_context *ctx)
+int database_check(const struct su_context *ctx)
 {
     sqlite3 *db;
     int dballow;

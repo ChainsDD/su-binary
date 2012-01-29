@@ -44,7 +44,7 @@ static const int VAL_INTEGER = 1;
 
 static const int START_SUCCESS = 0;
 
-int send_intent(struct su_context *ctx,
+int send_intent(const struct su_context *ctx,
                 const char *socket_path, int allow, const char *action)
 {
     sp<IServiceManager> sm = defaultServiceManager();

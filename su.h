@@ -78,26 +78,26 @@ enum {
     DB_ALLOW
 };
 
-extern int database_check(struct su_context *ctx);
+extern int database_check(const struct su_context *ctx);
 
-extern int send_intent(struct su_context *ctx,
+extern int send_intent(const struct su_context *ctx,
                        const char *socket_path, int allow, const char *action);
 
-static inline char *get_command(struct su_request *to)
+static inline char *get_command(const struct su_request *to)
 {
 	return (to->command) ? to->command : to->shell;
 }
 
 #if 0
 #undef LOGE
-#define LOGE(fmt,args...) fprintf(stderr, fmt , ## args )
+#define LOGE(fmt,args...) fprintf(stderr, fmt, ##args)
 #undef LOGD
-#define LOGD(fmt,args...) fprintf(stderr, fmt , ## args )
+#define LOGD(fmt,args...) fprintf(stderr, fmt, ##args)
 #undef LOGW
-#define LOGW(fmt,args...) fprintf(stderr, fmt , ## args )
+#define LOGW(fmt,args...) fprintf(stderr, fmt, ##args)
 #endif
 
-#define PLOGE(fmt,args...) LOGE(fmt " failed with %d: %s" , ## args , errno, strerror(errno))
-#define PLOGEV(fmt,err,args...) LOGE(fmt " failed with %d: %s" , ## args , err, strerror(err))
+#define PLOGE(fmt,args...) LOGE(fmt " failed with %d: %s", ##args, errno, strerror(errno))
+#define PLOGEV(fmt,err,args...) LOGE(fmt " failed with %d: %s", ##args, err, strerror(err))
 
 #endif

@@ -196,7 +196,7 @@ static int socket_accept(int serv_fd)
     return fd;
 }
 
-static int socket_send_request(int fd, struct su_context *ctx)
+static int socket_send_request(int fd, const struct su_context *ctx)
 {
     size_t len;
     size_t bin_size, cmd_size;
@@ -268,7 +268,7 @@ static void usage(int status)
     exit(status);
 }
 
-static void deny(struct su_context *ctx)
+static void deny(const struct su_context *ctx)
 {
     char *cmd = get_command(&ctx->to);
 
@@ -278,7 +278,7 @@ static void deny(struct su_context *ctx)
     exit(EXIT_FAILURE);
 }
 
-static void allow(struct su_context *ctx)
+static void allow(const struct su_context *ctx)
 {
     char *arg0;
     int argc, err;
