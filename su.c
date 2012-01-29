@@ -274,7 +274,7 @@ static void deny(struct su_context *ctx)
 {
     char *cmd = get_command(&ctx->to);
 
-    send_intent(ctx, "", 0, 1);
+    send_intent(ctx, "", 0, ACTION_RESULT);
     LOGW("request rejected (%u->%u %s)", ctx->from.uid, ctx->to.uid, cmd);
     fprintf(stderr, "%s\n", strerror(EACCES));
     exit(EXIT_FAILURE);
@@ -286,7 +286,7 @@ static void allow(struct su_context *ctx)
     int argc, err;
 
     umask(ctx->umask);
-    send_intent(ctx, "", 1, 1);
+    send_intent(ctx, "", 1, ACTION_RESULT);
 
     arg0 = strrchr (ctx->to.shell, '/');
     arg0 = (arg0) ? arg0 + 1 : ctx->to.shell;
@@ -487,7 +487,7 @@ int main(int argc, char *argv[])
     signal(SIGABRT, cleanup_signal);
     atexit(cleanup);
 
-    if (send_intent(&ctx, socket_path, -1, 0) < 0) {
+    if (send_intent(&ctx, socket_path, -1, ACTION_REQUEST) < 0) {
         deny(&ctx);
     }
 

@@ -25,6 +25,10 @@
 #define REQUESTOR_DATABASES_PATH REQUESTOR_DATA_PATH "/databases"
 #define REQUESTOR_DATABASE_PATH REQUESTOR_DATABASES_PATH "/permissions.sqlite"
 
+/* intent actions */
+#define ACTION_REQUEST REQUESTOR ".REQUEST"
+#define ACTION_RESULT  REQUESTOR ".RESULT"
+
 #define DEFAULT_SHELL "/system/bin/sh"
 
 #ifdef SU_LEGACY_BUILD
@@ -71,7 +75,8 @@ enum {
 
 extern int database_check(struct su_context *ctx);
 
-extern int send_intent(struct su_context *ctx, const char *socket_path, int allow, int type);
+extern int send_intent(struct su_context *ctx,
+                       const char *socket_path, int allow, const char *action);
 
 static inline char *get_command(struct su_request *to)
 {

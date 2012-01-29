@@ -44,7 +44,8 @@ static const int VAL_INTEGER = 1;
 
 static const int START_SUCCESS = 0;
 
-int send_intent(struct su_context *ctx, const char *socket_path, int allow, int type)
+int send_intent(struct su_context *ctx,
+                const char *socket_path, int allow, const char *action)
 {
     sp<IServiceManager> sm = defaultServiceManager();
     sp<IBinder> am = sm->checkService(String16("activity"));
@@ -56,11 +57,7 @@ int send_intent(struct su_context *ctx, const char *socket_path, int allow, int 
     data.writeStrongBinder(NULL); /* caller */
 
     /* intent */
-    if (type == 0) {
-        data.writeString16(String16("com.noshufou.android.su.REQUEST")); /* action */
-    } else {
-        data.writeString16(String16("com.noshufou.android.su.RESULT")); /* action */
-    }
+    data.writeString16(String16(action)); /* action */
     data.writeInt32(NULL_TYPE_ID); /* Uri - data */
     data.writeString16(NULL, 0); /* type */
     data.writeInt32(0); /* flags */
