@@ -46,7 +46,7 @@ static const int VAL_INTEGER = 1;
 
 static const int START_SUCCESS = 0;
 
-int send_intent(struct su_initiator *from, struct su_request *to, const char *socket_path, int allow, int type)
+int send_intent(struct su_context *ctx, const char *socket_path, int allow, int type)
 {
     char sdk_version_prop[PROPERTY_VALUE_MAX] = "0";
     property_get("ro.build.version.sdk", sdk_version_prop, "0");
@@ -95,25 +95,25 @@ int send_intent(struct su_initiator *from, struct su_request *to, const char *so
             data.writeInt32(VAL_STRING);
             data.writeString16(String16("caller_uid"));
             data.writeInt32(VAL_INTEGER);
-            data.writeInt32(from->uid);
+            data.writeInt32(ctx->from.uid);
 
             data.writeInt32(VAL_STRING);
             data.writeString16(String16("caller_bin"));
             data.writeInt32(VAL_STRING);
-            data.writeString16(String16(from->bin));
+            data.writeString16(String16(ctx->from.bin));
 
             data.writeInt32(VAL_STRING);
             data.writeString16(String16("desired_uid"));
             data.writeInt32(VAL_INTEGER);
-            data.writeInt32(to->uid);
+            data.writeInt32(ctx->to.uid);
 
             data.writeInt32(VAL_STRING);
             data.writeString16(String16("desired_cmd"));
             data.writeInt32(VAL_STRING);
-            if (to->command)
-                data.writeString16(String16(to->command));
+            if (ctx->to.command)
+                data.writeString16(String16(ctx->to.command));
             else
-                data.writeString16(String16(to->shell));
+                data.writeString16(String16(ctx->to.shell));
 
             data.writeInt32(VAL_STRING);
             data.writeString16(String16("socket"));

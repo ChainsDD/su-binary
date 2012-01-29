@@ -43,23 +43,6 @@
 /* Still lazt, will fix this */
 static char socket_path[PATH_MAX];
 
-static struct su_initiator su_from = {
-    .pid = -1,
-    .uid = 0,
-    .bin = "",
-    .args = "",
-};
-
-static struct su_request su_to = {
-    .uid = AID_ROOT,
-    .login = 0,
-    .shell = DEFAULT_SHELL,
-    .command = NULL,
-    .argv = NULL,
-    .argc = 0,
-    .optind = 0,
-};
-
 static int from_init(struct su_initiator *from)
 {
     char path[PATH_MAX], exe[PATH_MAX];
@@ -205,7 +188,7 @@ static int socket_accept(int serv_fd)
     return fd;
 }
 
-static int socket_send_request(int fd, struct su_initiator *from, struct su_request *to)
+static int socket_send_request(int fd, struct su_context *ctx)
 {
     size_t len;
     size_t bin_size, cmd_size;
@@ -225,16 +208,16 @@ do {							\
     write_token(fd, PROTO_VERSION);
     write_token(fd, PATH_MAX);
     write_token(fd, ARG_MAX);
-    write_token(fd, from->uid);
-    write_token(fd, to->uid);
-    bin_size = strlen(from->bin) + 1;
+    write_token(fd, ctx->from.uid);
+    write_token(fd, ctx->to.uid);
+    bin_size = strlen(ctx->from.bin) + 1;
     write_token(fd, bin_size);
-    len = write(fd, from->bin, bin_size);
+    len = write(fd, ctx->from.bin, bin_size);
     if (len != bin_size) {
         PLOGE("write(bin)");
         return -1;
     }
-    cmd = (to->command) ? to->command : to->shell;
+    cmd = (ctx->to.command) ? ctx->to.command : ctx->to.shell;
     cmd_size = strlen(cmd) + 1;
     write_token(fd, cmd_size);
     len = write(fd, cmd, cmd_size);
@@ -277,31 +260,27 @@ static void usage(int status)
     exit(status);
 }
 
-static void deny(void)
+static void deny(struct su_context *ctx)
 {
-    struct su_initiator *from = &su_from;
-    struct su_request *to = &su_to;
-    char *cmd = (to->command) ? to->command : to->shell;
+    char *cmd = (ctx->to.command) ? ctx->to.command : ctx->to.shell;
 
-    send_intent(&su_from, &su_to, "", 0, 1);
-    LOGW("request rejected (%u->%u %s)", from->uid, to->uid, cmd);
+    send_intent(ctx, "", 0, 1);
+    LOGW("request rejected (%u->%u %s)", ctx->from.uid, ctx->to.uid, cmd);
     fprintf(stderr, "%s\n", strerror(EACCES));
     exit(EXIT_FAILURE);
 }
 
-static void allow(void)
+static void allow(struct su_context *ctx)
 {
-    struct su_initiator *from = &su_from;
-    struct su_request *to = &su_to;
     char *arg0;
     int argc, err;
 
-    umask(to->umask);
-    send_intent(&su_from, &su_to, "", 1, 1);
+    umask(ctx->umask);
+    send_intent(ctx, "", 1, 1);
 
-    arg0 = strrchr (to->shell, '/');
-    arg0 = (arg0) ? arg0 + 1 : to->shell;
-    if (to->login) {
+    arg0 = strrchr (ctx->to.shell, '/');
+    arg0 = (arg0) ? arg0 + 1 : ctx->to.shell;
+    if (ctx->to.login) {
         int s = strlen(arg0) + 2;
         char *p = malloc(s);
 
@@ -312,38 +291,57 @@ static void allow(void)
         strcpy(p + 1, arg0);
         arg0 = p;
     }
-    if (setresgid(to->uid, to->uid, to->uid)) {
-        PLOGE("setresgid (%u)", to->uid);
+    if (setresgid(ctx->to.uid, ctx->to.uid, ctx->to.uid)) {
+        PLOGE("setresgid (%u)", ctx->to.uid);
         exit(EXIT_FAILURE);
     }
-    if (setresuid(to->uid, to->uid, to->uid)) {
-        PLOGE("setresuid (%u)", to->uid);
+    if (setresuid(ctx->to.uid, ctx->to.uid, ctx->to.uid)) {
+        PLOGE("setresuid (%u)", ctx->to.uid);
         exit(EXIT_FAILURE);
     }
 
-#define PARG(arg)    (to->optind + (arg) < to->argc) ? " " : "", \
-                     (to->optind + (arg) < to->argc) ? to->argv[to->optind + (arg)] : ""
+#define PARG(arg)									\
+    (ctx->to.optind + (arg) < ctx->to.argc) ? " " : "",					\
+    (ctx->to.optind + (arg) < ctx->to.argc) ? ctx->to.argv[ctx->to.optind + (arg)] : ""
+
     LOGD("%u %s executing %u %s using shell %s : %s%s%s%s%s%s%s%s%s%s%s%s%s%s",
-            from->uid, from->bin,
-            to->uid, (to->command) ? to->command : to->shell, to->shell,
+            ctx->from.uid, ctx->from.bin,
+            ctx->to.uid, (ctx->to.command) ? ctx->to.command : ctx->to.shell, ctx->to.shell,
             arg0, PARG(0), PARG(1), PARG(2), PARG(3), PARG(4), PARG(5),
-            (to->optind + 6 < to->argc) ? " ..." : "");
+            (ctx->to.optind + 6 < ctx->to.argc) ? " ..." : "");
 
-    argc = to->optind;
-    if (to->command) {
-        to->argv[--argc] = to->command;
-        to->argv[--argc] = "-c";
+    argc = ctx->to.optind;
+    if (ctx->to.command) {
+        ctx->to.argv[--argc] = ctx->to.command;
+        ctx->to.argv[--argc] = "-c";
     }
-    to->argv[--argc] = arg0;
-    execv(to->shell, to->argv + argc);
+    ctx->to.argv[--argc] = arg0;
+    execv(ctx->to.shell, ctx->to.argv + argc);
     err = errno;
     PLOGE("exec");
-    fprintf(stderr, "Cannot execute %s: %s\n", to->shell, strerror(err));
+    fprintf(stderr, "Cannot execute %s: %s\n", ctx->to.shell, strerror(err));
     exit(EXIT_FAILURE);
 }
 
 int main(int argc, char *argv[])
 {
+    struct su_context ctx = {
+        .from = {
+            .pid = -1,
+            .uid = 0,
+            .bin = "",
+            .args = "",
+        },
+        .to = {
+            .uid = AID_ROOT,
+            .login = 0,
+            .shell = DEFAULT_SHELL,
+            .command = NULL,
+            .argv = argv,
+            .argc = argc,
+            .optind = 0,
+        },
+    };
     struct stat st;
     int socket_serv_fd, fd;
     char buf[64], *result;
@@ -361,19 +359,19 @@ int main(int argc, char *argv[])
     while ((c = getopt_long(argc, argv, "+c:hlmps:Vv", long_opts, NULL)) != -1) {
         switch(c) {
         case 'c':
-            su_to.command = optarg;
+            ctx.to.command = optarg;
             break;
         case 'h':
             usage(EXIT_SUCCESS);
             break;
         case 'l':
-            su_to.login = 1;
+            ctx.to.login = 1;
             break;
         case 'm':    /* for compatibility */
         case 'p':
             break;
         case 's':
-            su_to.shell = optarg;
+            ctx.to.shell = optarg;
             break;
         case 'V':
             printf("%d\n", VERSION_CODE);
@@ -388,7 +386,7 @@ int main(int argc, char *argv[])
         }
     }
     if (optind < argc && !strcmp(argv[optind], "-")) {
-        su_to.login = 1;
+        ctx.to.login = 1;
         optind++;
     }
     /* username or uid */
@@ -400,75 +398,73 @@ int main(int argc, char *argv[])
 
             /* It seems we shouldn't do this at all */
             errno = 0;
-            su_to.uid = strtoul(argv[optind], &endptr, 10);
+            ctx.to.uid = strtoul(argv[optind], &endptr, 10);
             if (errno || *endptr) {
                 LOGE("Unknown id: %s\n", argv[optind]);
                 fprintf(stderr, "Unknown id: %s\n", argv[optind]);
                 exit(EXIT_FAILURE);
             }
         } else {
-            su_to.uid = pw->pw_uid;
+            ctx.to.uid = pw->pw_uid;
         }
         optind++;
     }
     if (optind < argc && !strcmp(argv[optind], "--")) {
         optind++;
     }
-    su_to.argv = argv;
-    su_to.argc = argc;
-    su_to.optind = optind;
+    ctx.to.optind = optind;
 
-    if (from_init(&su_from) < 0) {
-        deny();
+    if (from_init(&ctx.from) < 0) {
+        deny(&ctx);
     }
 
-    su_to.umask = umask(027);
+    ctx.umask = umask(027);
 
-    if (su_from.uid == AID_ROOT || su_from.uid == AID_SHELL)
-        allow();
+    if (ctx.from.uid == AID_ROOT || ctx.from.uid == AID_SHELL)
+        allow(&ctx);
 
     if (stat(REQUESTOR_DATA_PATH, &st) < 0) {
         PLOGE("stat");
-        deny();
+        deny(&ctx);
     }
 
     if (st.st_gid != st.st_uid)
     {
         LOGE("Bad uid/gid %d/%d for Superuser Requestor application",
                 (int)st.st_uid, (int)st.st_gid);
-        deny();
+        deny(&ctx);
     }
 
     mkdir(REQUESTOR_CACHE_PATH, 0770);
     if (chown(REQUESTOR_CACHE_PATH, st.st_uid, st.st_gid)) {
         PLOGE("chown (%s, %ld, %ld)", REQUESTOR_CACHE_PATH, st.st_uid, st.st_gid);
-        deny();
+        deny(&ctx);
     }
 
     if (setgroups(0, NULL)) {
         PLOGE("setgroups");
-        deny();
+        deny(&ctx);
     }
     if (setegid(st.st_gid)) {
         PLOGE("setegid (%lu)", st.st_gid);
-        deny();
+        deny(&ctx);
     }
     if (seteuid(st.st_uid)) {
         PLOGE("seteuid (%lu)", st.st_uid);
-        deny();
+        deny(&ctx);
     }
 
-    dballow = database_check(&su_from, &su_to);
+    dballow = database_check(&ctx);
     switch (dballow) {
-        case DB_DENY: deny();
-        case DB_ALLOW: allow();
+        case DB_DENY: deny(&ctx);
+        case DB_ALLOW: allow(&ctx);
         case DB_INTERACTIVE: break;
-        default: deny();
+        default: deny(&ctx);
     }
     
     socket_serv_fd = socket_create_temp(socket_path, sizeof(socket_path));
     if (socket_serv_fd < 0) {
-        deny();
+        deny(&ctx);
     }
 
     signal(SIGHUP, cleanup_signal);
@@ -479,19 +475,19 @@ int main(int argc, char *argv[])
     signal(SIGABRT, cleanup_signal);
     atexit(cleanup);
 
-    if (send_intent(&su_from, &su_to, socket_path, -1, 0) < 0) {
-        deny();
+    if (send_intent(&ctx, socket_path, -1, 0) < 0) {
+        deny(&ctx);
     }
 
     fd = socket_accept(socket_serv_fd);
     if (fd < 0) {
-        deny();
+        deny(&ctx);
     }
-    if (socket_send_request(fd, &su_from, &su_to)) {
-        deny();
+    if (socket_send_request(fd, &ctx)) {
+        deny(&ctx);
     }
     if (socket_receive_result(fd, buf, sizeof(buf))) {
-        deny();
+        deny(&ctx);
     }
 
     close(fd);
@@ -507,14 +503,14 @@ int main(int argc, char *argv[])
         result += sizeof(SOCKET_RESPONSE) - 1;
 
     if (!strcmp(result, "DENY")) {
-        deny();
+        deny(&ctx);
     } else if (!strcmp(result, "ALLOW")) {
-        allow();
+        allow(&ctx);
     } else {
         LOGE("unknown response from Superuser Requestor: %s", result);
-        deny();
+        deny(&ctx);
     }
 
-    deny();
+    deny(&ctx);
     return -1;
 }

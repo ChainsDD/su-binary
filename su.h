@@ -49,12 +49,17 @@ struct su_initiator {
 struct su_request {
     unsigned uid;
     int login;
-    mode_t umask;
     char *shell;
     char *command;
     char **argv;
     int argc;
     int optind;
+};
+
+struct su_context {
+    struct su_initiator from;
+    struct su_request to;
+    mode_t umask;
 };
 
 enum {
@@ -63,9 +68,9 @@ enum {
     DB_ALLOW
 };
 
-extern int database_check(struct su_initiator*, struct su_request*);
+extern int database_check(struct su_context *ctx);
 
-extern int send_intent(struct su_initiator *from, struct su_request *to, const char *socket_path, int allow, int type);
+extern int send_intent(struct su_context *ctx, const char *socket_path, int allow, int type);
 
 #if 0
 #undef LOGE
