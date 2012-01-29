@@ -15,8 +15,6 @@
 ** limitations under the License.
 */
 
-#define LOG_TAG "su"
-
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>

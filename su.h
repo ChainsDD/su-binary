@@ -18,6 +18,11 @@
 #ifndef SU_h 
 #define SU_h 1
 
+#ifdef LOG_TAG
+#undef LOG_TAG
+#endif
+#define LOG_TAG "su"
+
 #define REQUESTOR "com.noshufou.android.su"
 #define REQUESTOR_DATA_PATH "/data/data/" REQUESTOR
 #define REQUESTOR_CACHE_PATH "/dev/" REQUESTOR
