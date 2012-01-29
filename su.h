@@ -60,6 +60,7 @@ struct su_context {
     struct su_initiator from;
     struct su_request to;
     mode_t umask;
+    int sdk_version;
 };
 
 enum {

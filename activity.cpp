@@ -31,8 +31,6 @@
 
 extern "C" {
 #include "su.h"
-#include <private/android_filesystem_config.h>
-#include <cutils/properties.h>
 }
 
 using namespace android;
@@ -48,11 +46,6 @@ static const int START_SUCCESS = 0;
 
 int send_intent(struct su_context *ctx, const char *socket_path, int allow, int type)
 {
-    char sdk_version_prop[PROPERTY_VALUE_MAX] = "0";
-    property_get("ro.build.version.sdk", sdk_version_prop, "0");
-
-    int sdk_version = atoi(sdk_version_prop); 
-
     sp<IServiceManager> sm = defaultServiceManager();
     sp<IBinder> am = sm->checkService(String16("activity"));
     assert(am != NULL);
@@ -71,17 +64,17 @@ int send_intent(struct su_context *ctx, const char *socket_path, int allow, int 
     data.writeInt32(NULL_TYPE_ID); /* Uri - data */
     data.writeString16(NULL, 0); /* type */
     data.writeInt32(0); /* flags */
-    if (sdk_version >= 4) {
+    if (ctx->sdk_version >= 4) {
         // added in donut
         data.writeString16(NULL, 0); /* package name - DONUT ONLY, NOT IN CUPCAKE. */
     }
     data.writeString16(NULL, 0); /* ComponentName - package */
-    if (sdk_version >= 7) {
+    if (ctx->sdk_version >= 7) {
         // added in eclair rev 7
         data.writeInt32(0); /* Rect - the bounds of the sender */
     }
     data.writeInt32(0); /* Categories - size */
-    if (sdk_version >= 15) {
+    if (ctx->sdk_version >= 15) {
         // added in IceCreamSandwich 4.0.3
         data.writeInt32(0); /* Selector */
     }
