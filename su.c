@@ -53,8 +53,11 @@ static struct su_initiator su_from = {
 static struct su_request su_to = {
     .uid = AID_ROOT,
     .login = 0,
-    .doshell = 1,
-    .command = DEFAULT_COMMAND,
+    .shell = DEFAULT_SHELL,
+    .command = NULL,
+    .argv = NULL,
+    .argc = 0,
+    .optind = 0,
 };
 
 static int from_init(struct su_initiator *from)
@@ -206,6 +209,7 @@ static int socket_send_request(int fd, struct su_initiator *from, struct su_requ
 {
     size_t len;
     size_t bin_size, cmd_size;
+    char *cmd;
 
 #define write_token(fd, data)				\
 do {							\
@@ -230,9 +234,10 @@ do {							\
         PLOGE("write(bin)");
         return -1;
     }
-    cmd_size = strlen(to->command) + 1;
+    cmd = (to->command) ? to->command : to->shell;
+    cmd_size = strlen(cmd) + 1;
     write_token(fd, cmd_size);
-    len = write(fd, to->command, cmd_size);
+    len = write(fd, cmd, cmd_size);
     if (len != cmd_size) {
         PLOGE("write(cmd)");
         return -1;
@@ -259,13 +264,13 @@ static void usage(int status)
     FILE *stream = (status == EXIT_SUCCESS) ? stdout : stderr;
 
     fprintf(stream,
-    "Usage: su [options] [LOGIN]\n\n"
+    "Usage: su [options] [--] [-] [LOGIN] [--] [args...]\n\n"
     "Options:\n"
     "  -c, --command COMMAND         pass COMMAND to the invoked shell\n"
     "  -h, --help                    display this help message and exit\n"
     "  -, -l, --login, -m, -p,\n"
     "  --preserve-environment        do nothing, kept for compatibility\n"
-    "  -s, --shell SHELL             use SHELL instead of the default " DEFAULT_COMMAND "\n"
+    "  -s, --shell SHELL             use SHELL instead of the default " DEFAULT_SHELL "\n"
     "  -v, --version                 display version number and exit\n"
     "  -V                            display version code and exit,\n"
     "                                this is used almost exclusively by Superuser.apk\n");
@@ -276,40 +281,36 @@ static void deny(void)
 {
     struct su_initiator *from = &su_from;
     struct su_request *to = &su_to;
+    char *cmd = (to->command) ? to->command : to->shell;
 
     send_intent(&su_from, &su_to, "", 0, 1);
-    LOGW("request rejected (%u->%u %s)", from->uid, to->uid, to->command);
+    LOGW("request rejected (%u->%u %s)", from->uid, to->uid, cmd);
     fprintf(stderr, "%s\n", strerror(EACCES));
     exit(EXIT_FAILURE);
 }
 
-static void allow(char *shell, mode_t mask)
+static void allow(void)
 {
     struct su_initiator *from = &su_from;
     struct su_request *to = &su_to;
-    char *exe = NULL;
-    char *argv[4];
-    int argc = 0;
-    int err;
+    char *arg0;
+    int argc, err;
 
-    umask(mask);
+    umask(to->umask);
     send_intent(&su_from, &su_to, "", 1, 1);
 
-    if (!shell) {
-        shell = DEFAULT_COMMAND;
-    }
-    exe = strrchr (shell, '/');
-    exe = (exe) ? exe + 1 : shell;
+    arg0 = strrchr (to->shell, '/');
+    arg0 = (arg0) ? arg0 + 1 : to->shell;
     if (to->login) {
-        int s = strlen(exe) + 2;
+        int s = strlen(arg0) + 2;
         char *p = malloc(s);
 
         if (!p)
             exit(EXIT_FAILURE);
 
         *p = '-';
-        strcpy(p + 1, exe);
-        exe = p;
+        strcpy(p + 1, arg0);
+        arg0 = p;
     }
     if (setresgid(to->uid, to->uid, to->uid)) {
         PLOGE("setresgid (%u)", to->uid);
@@ -319,20 +320,25 @@ static void allow(char *shell, mode_t mask)
         PLOGE("setresuid (%u)", to->uid);
         exit(EXIT_FAILURE);
     }
-    LOGD("%u %s executing %u %s using shell %s : %s", from->uid, from->bin,
-            to->uid, to->command, shell, exe);
-    argv[argc++] = exe;
-    if (to->doshell) {
-        argv[argc++] = "-";
-    } else {
-        argv[argc++] = "-c";
-        argv[argc++] = to->command;
+
+#define PARG(arg)    (to->optind + (arg) < to->argc) ? " " : "", \
+                     (to->optind + (arg) < to->argc) ? to->argv[to->optind + (arg)] : ""
+    LOGD("%u %s executing %u %s using shell %s : %s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+            from->uid, from->bin,
+            to->uid, (to->command) ? to->command : to->shell, to->shell,
+            arg0, PARG(0), PARG(1), PARG(2), PARG(3), PARG(4), PARG(5),
+            (to->optind + 6 < to->argc) ? " ..." : "");
+
+    argc = to->optind;
+    if (to->command) {
+        to->argv[--argc] = to->command;
+        to->argv[--argc] = "-c";
     }
-    argv[argc] = NULL;
-    execv(shell, argv);
+    to->argv[--argc] = arg0;
+    execv(to->shell, to->argv + argc);
     err = errno;
     PLOGE("exec");
-    fprintf(stderr, "Cannot execute %s: %s\n", shell, strerror(err));
+    fprintf(stderr, "Cannot execute %s: %s\n", to->shell, strerror(err));
     exit(EXIT_FAILURE);
 }
 
@@ -340,9 +346,8 @@ int main(int argc, char *argv[])
 {
     struct stat st;
     int socket_serv_fd, fd;
-    char buf[64], *shell = NULL, *result;
+    char buf[64], *result;
     int c, dballow;
-    mode_t orig_umask;
     struct option long_opts[] = {
         { "command",			required_argument,	NULL, 'c' },
         { "help",			no_argument,		NULL, 'h' },
@@ -353,11 +358,10 @@ int main(int argc, char *argv[])
         { NULL, 0, NULL, 0 },
     };
 
-    while ((c = getopt_long(argc, argv, "c:hlmps:Vv", long_opts, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "+c:hlmps:Vv", long_opts, NULL)) != -1) {
         switch(c) {
         case 'c':
             su_to.command = optarg;
-            su_to.doshell = 0;
             break;
         case 'h':
             usage(EXIT_SUCCESS);
@@ -369,7 +373,7 @@ int main(int argc, char *argv[])
         case 'p':
             break;
         case 's':
-            shell = optarg;
+            su_to.shell = optarg;
             break;
         case 'V':
             printf("%d\n", VERSION_CODE);
@@ -387,14 +391,8 @@ int main(int argc, char *argv[])
         su_to.login = 1;
         optind++;
     }
-    /*
-     * Other su implementations pass the remaining args to the shell.
-     * -- maybe implement this later
-     */
-    if (optind < argc - 1) {
-        usage(2);
-    }
-    if (optind == argc - 1) {
+    /* username or uid */
+    if (optind < argc && strcmp(argv[optind], "--")) {
         struct passwd *pw;
         pw = getpwnam(argv[optind]);
         if (!pw) {
@@ -411,16 +409,23 @@ int main(int argc, char *argv[])
         } else {
             su_to.uid = pw->pw_uid;
         }
+        optind++;
     }
+    if (optind < argc && !strcmp(argv[optind], "--")) {
+        optind++;
+    }
+    su_to.argv = argv;
+    su_to.argc = argc;
+    su_to.optind = optind;
 
     if (from_init(&su_from) < 0) {
         deny();
     }
 
-    orig_umask = umask(027);
+    su_to.umask = umask(027);
 
     if (su_from.uid == AID_ROOT || su_from.uid == AID_SHELL)
-        allow(shell, orig_umask);
+        allow();
 
     if (stat(REQUESTOR_DATA_PATH, &st) < 0) {
         PLOGE("stat");
@@ -456,7 +461,7 @@ int main(int argc, char *argv[])
     dballow = database_check(&su_from, &su_to);
     switch (dballow) {
         case DB_DENY: deny();
-        case DB_ALLOW: allow(shell, orig_umask);
+        case DB_ALLOW: allow();
         case DB_INTERACTIVE: break;
         default: deny();
     }
@@ -504,7 +509,7 @@ int main(int argc, char *argv[])
     if (!strcmp(result, "DENY")) {
         deny();
     } else if (!strcmp(result, "ALLOW")) {
-        allow(shell, orig_umask);
+        allow();
     } else {
         LOGE("unknown response from Superuser Requestor: %s", result);
         deny();

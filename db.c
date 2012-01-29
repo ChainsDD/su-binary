@@ -52,7 +52,7 @@ static int db_check(sqlite3 *db, struct su_initiator *from, struct su_request *t
     sqlite3_snprintf(
         sizeof(sql), sql,
         "SELECT _id,name,allow FROM apps WHERE uid=%u AND exec_uid=%u AND exec_cmd='%q';",
-        (unsigned)from->uid, to->uid, to->command
+        (unsigned)from->uid, to->uid, (to->command) ? to->command : to->shell
     );
 
     if (strlen(sql) >= sizeof(sql)-1)

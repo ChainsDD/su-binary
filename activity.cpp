@@ -110,7 +110,10 @@ int send_intent(struct su_initiator *from, struct su_request *to, const char *so
             data.writeInt32(VAL_STRING);
             data.writeString16(String16("desired_cmd"));
             data.writeInt32(VAL_STRING);
-            data.writeString16(String16(to->command));
+            if (to->command)
+                data.writeString16(String16(to->command));
+            else
+                data.writeString16(String16(to->shell));
 
             data.writeInt32(VAL_STRING);
             data.writeString16(String16("socket"));

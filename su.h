@@ -25,7 +25,7 @@
 #define REQUESTOR_DATABASES_PATH REQUESTOR_DATA_PATH "/databases"
 #define REQUESTOR_DATABASE_PATH REQUESTOR_DATABASES_PATH "/permissions.sqlite"
 
-#define DEFAULT_COMMAND "/system/bin/sh"
+#define DEFAULT_SHELL "/system/bin/sh"
 
 #ifdef SU_LEGACY_BUILD
 #define VERSION_EXTRA	"l"
@@ -49,8 +49,12 @@ struct su_initiator {
 struct su_request {
     unsigned uid;
     int login;
-    int doshell;
+    mode_t umask;
+    char *shell;
     char *command;
+    char **argv;
+    int argc;
+    int optind;
 };
 
 enum {
