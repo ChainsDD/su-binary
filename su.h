@@ -72,6 +72,11 @@ extern int database_check(struct su_context *ctx);
 
 extern int send_intent(struct su_context *ctx, const char *socket_path, int allow, int type);
 
+static inline char *get_command(struct su_request *to)
+{
+	return (to->command) ? to->command : to->shell;
+}
+
 #if 0
 #undef LOGE
 #define LOGE(fmt,args...) fprintf(stderr, fmt , ## args )

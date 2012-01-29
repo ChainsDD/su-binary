@@ -217,7 +217,7 @@ do {							\
         PLOGE("write(bin)");
         return -1;
     }
-    cmd = (ctx->to.command) ? ctx->to.command : ctx->to.shell;
+    cmd = get_command(&ctx->to);
     cmd_size = strlen(cmd) + 1;
     write_token(fd, cmd_size);
     len = write(fd, cmd, cmd_size);
@@ -262,7 +262,7 @@ static void usage(int status)
 
 static void deny(struct su_context *ctx)
 {
-    char *cmd = (ctx->to.command) ? ctx->to.command : ctx->to.shell;
+    char *cmd = get_command(&ctx->to);
 
     send_intent(ctx, "", 0, 1);
     LOGW("request rejected (%u->%u %s)", ctx->from.uid, ctx->to.uid, cmd);
@@ -306,7 +306,7 @@ static void allow(struct su_context *ctx)
 
     LOGD("%u %s executing %u %s using shell %s : %s%s%s%s%s%s%s%s%s%s%s%s%s%s",
             ctx->from.uid, ctx->from.bin,
-            ctx->to.uid, (ctx->to.command) ? ctx->to.command : ctx->to.shell, ctx->to.shell,
+            ctx->to.uid, get_command(&ctx->to), ctx->to.shell,
             arg0, PARG(0), PARG(1), PARG(2), PARG(3), PARG(4), PARG(5),
             (ctx->to.optind + 6 < ctx->to.argc) ? " ..." : "");
 
