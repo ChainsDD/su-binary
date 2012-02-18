@@ -23,9 +23,7 @@
 
 #include "su.h"
 
-// { int* pint; pint=(int*)data; ++(*pint); }
-
-sqlite3 *database_init()
+static sqlite3 *db_init(void)
 {
     sqlite3 *db;
     int rc;
@@ -41,7 +39,7 @@ sqlite3 *database_init()
     return db;
 }
 
-int database_check(sqlite3 *db, struct su_initiator *from, struct su_request *to)
+static int db_check(sqlite3 *db, const struct su_context *ctx)
 {
     char sql[4096];
     char *zErrmsg;
@@ -52,7 +50,7 @@ int database_check(sqlite3 *db, struct su_initiator *from, struct su_request *to
     sqlite3_snprintf(
         sizeof(sql), sql,
         "SELECT _id,name,allow FROM apps WHERE uid=%u AND exec_uid=%u AND exec_cmd='%q';",
-        (unsigned)from->uid, to->uid, to->command
+        ctx->from.uid, ctx->to.uid, get_command(&ctx->to)
     );
 
     if (strlen(sql) >= sizeof(sql)-1)
@@ -84,4 +82,26 @@ out:
     sqlite3_free_table(result);
     
     return allow;
+}
+
+int database_check(const struct su_context *ctx)
+{
+    sqlite3 *db;
+    int dballow;
+
+    LOGE("sudb - Opening database");
+    db = db_init();
+    if (!db) {
+        LOGE("sudb - Could not open database, prompt user");
+        // if the database could not be opened, we can assume we need to
+        // prompt the user
+        return DB_INTERACTIVE;
+    }
+
+    LOGE("sudb - Database opened");
+    dballow = db_check(db, ctx);
+    // Close the database, we're done with it. If it stays open, it will cause problems
+    sqlite3_close(db);
+    LOGE("sudb - Database closed");
+    return dballow;
 }

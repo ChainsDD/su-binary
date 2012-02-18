@@ -18,20 +18,35 @@
 #ifndef SU_h 
 #define SU_h 1
 
-#define REQUESTOR_DATA_PATH "/data/data/com.noshufou.android.su"
-#define REQUESTOR_CACHE_PATH REQUESTOR_DATA_PATH "/cache"
+#ifdef LOG_TAG
+#undef LOG_TAG
+#endif
+#define LOG_TAG "su"
+
+#define REQUESTOR "com.noshufou.android.su"
+#define REQUESTOR_DATA_PATH "/data/data/" REQUESTOR
+#define REQUESTOR_CACHE_PATH "/dev/" REQUESTOR
 
 #define REQUESTOR_DATABASES_PATH REQUESTOR_DATA_PATH "/databases"
 #define REQUESTOR_DATABASE_PATH REQUESTOR_DATABASES_PATH "/permissions.sqlite"
 
-#define DEFAULT_COMMAND "/system/bin/sh"
+/* intent actions */
+#define ACTION_REQUEST REQUESTOR ".REQUEST"
+#define ACTION_RESULT  REQUESTOR ".RESULT"
 
-#define SOCKET_PATH_TEMPLATE REQUESTOR_CACHE_PATH "/.socketXXXXXX"
+#define DEFAULT_SHELL "/system/bin/sh"
 
-#define VERSION "3.0.3.2"
-#define VERSION_CODE 15
+#ifdef SU_LEGACY_BUILD
+#define VERSION_EXTRA	"l"
+#else
+#define VERSION_EXTRA	""
+#endif
+
+#define VERSION "3.1" VERSION_EXTRA
+#define VERSION_CODE 16
 
 #define DATABASE_VERSION 6
+#define PROTO_VERSION 0
 
 struct su_initiator {
     pid_t pid;
@@ -44,7 +59,19 @@ struct su_initiator {
 
 struct su_request {
     unsigned uid;
+    int login;
+    char *shell;
     char *command;
+    char **argv;
+    int argc;
+    int optind;
+};
+
+struct su_context {
+    struct su_initiator from;
+    struct su_request to;
+    mode_t umask;
+    int sdk_version;
 };
 
 enum {
@@ -53,19 +80,27 @@ enum {
     DB_ALLOW
 };
 
-extern int send_intent(struct su_initiator *from, struct su_request *to, const char *socket_path, int allow, int type);
+extern int database_check(const struct su_context *ctx);
+
+extern int send_intent(const struct su_context *ctx,
+                       const char *socket_path, int allow, const char *action);
+
+static inline char *get_command(const struct su_request *to)
+{
+	return (to->command) ? to->command : to->shell;
+}
 
 #if 0
 #undef LOGE
-#define LOGE(fmt,args...) fprintf(stderr, fmt , ## args )
+#define LOGE(fmt,args...) fprintf(stderr, fmt, ##args)
 #undef LOGD
-#define LOGD(fmt,args...) fprintf(stderr, fmt , ## args )
+#define LOGD(fmt,args...) fprintf(stderr, fmt, ##args)
 #undef LOGW
-#define LOGW(fmt,args...) fprintf(stderr, fmt , ## args )
+#define LOGW(fmt,args...) fprintf(stderr, fmt, ##args)
 #endif
 
-#define PLOGE(fmt,args...) LOGE(fmt " failed with %d: %s" , ## args , errno, strerror(errno))
-#define PLOGEV(fmt,err,args...) LOGE(fmt " failed with %d: %s" , ## args , err, strerror(err))
+#define PLOGE(fmt,args...) LOGE(fmt " failed with %d: %s", ##args, errno, strerror(errno))
+#define PLOGEV(fmt,err,args...) LOGE(fmt " failed with %d: %s", ##args, err, strerror(err))
 
 #define ARRAY_SIZE(array)	(sizeof(array) / sizeof(array[0]))
 
