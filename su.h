@@ -53,8 +53,6 @@ struct su_initiator {
     unsigned uid;
     char bin[PATH_MAX];
     char args[4096];
-    char env[ARG_MAX];
-    char *envp[512];
 };
 
 struct su_request {
@@ -101,7 +99,5 @@ static inline char *get_command(const struct su_request *to)
 
 #define PLOGE(fmt,args...) LOGE(fmt " failed with %d: %s", ##args, errno, strerror(errno))
 #define PLOGEV(fmt,err,args...) LOGE(fmt " failed with %d: %s", ##args, err, strerror(err))
-
-#define ARRAY_SIZE(array)	(sizeof(array) / sizeof(array[0]))
 
 #endif

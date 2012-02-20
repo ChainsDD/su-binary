@@ -59,7 +59,6 @@ static int from_init(struct su_initiator *from)
     ssize_t len;
     int i;
     int err;
-    size_t j;
 
     from->uid = getuid();
     from->pid = getppid();
@@ -114,31 +113,6 @@ static int from_init(struct su_initiator *from)
     strncpy(from->bin, argv0, sizeof(from->bin));
     from->bin[sizeof(from->bin)-1] = '\0';
 
-    /* Get the environment of the calling process */
-    snprintf(path, sizeof(path), "/proc/%u/environ", from->pid);
-    fd = open(path, O_RDONLY);
-    if (fd < 0) {
-        PLOGE("Opening environment");
-        goto out;
-    }
-    len = read(fd, from->env, sizeof(from->env));
-    err = errno;
-    close(fd);
-    if (len < 0 || len == sizeof(from->env)) {
-        PLOGEV("Reading environment", err);
-        goto out;
-    }
-    from->env[len] = '\0';
-
-    from->envp[0] = &from->env[0];
-    for (i = 0, j = 0; i < len && j < ARRAY_SIZE(from->envp); i++) {
-        if (from->env[i] == '\0') {
-                 from->envp[++j] = &from->env[i + 1];
-        }
-    }
-    from->envp[j] = NULL;
-
-out:
     return 0;
 }
 
@@ -307,7 +281,6 @@ static void deny(const struct su_context *ctx)
 static void allow(const struct su_context *ctx)
 {
     char *arg0;
-    char * const* envp = environ;
     int argc, err;
 
     umask(ctx->umask);
@@ -325,9 +298,6 @@ static void allow(const struct su_context *ctx)
         *p = '-';
         strcpy(p + 1, arg0);
         arg0 = p;
-    }
-    if (ctx->from.envp[0]) {
-        envp = ctx->from.envp;
     }
     if (setresgid(ctx->to.uid, ctx->to.uid, ctx->to.uid)) {
         PLOGE("setresgid (%u)", ctx->to.uid);
@@ -354,7 +324,7 @@ static void allow(const struct su_context *ctx)
         ctx->to.argv[--argc] = "-c";
     }
     ctx->to.argv[--argc] = arg0;
-    execve(ctx->to.shell, ctx->to.argv + argc, envp);
+    execv(ctx->to.shell, ctx->to.argv + argc);
     err = errno;
     PLOGE("exec");
     fprintf(stderr, "Cannot execute %s: %s\n", ctx->to.shell, strerror(err));
@@ -369,8 +339,6 @@ int main(int argc, char *argv[])
             .uid = 0,
             .bin = "",
             .args = "",
-            .env = "",
-            .envp = { NULL },
         },
         .to = {
             .uid = AID_ROOT,
