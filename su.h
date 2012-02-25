@@ -58,6 +58,7 @@ struct su_initiator {
 struct su_request {
     unsigned uid;
     int login;
+    int keepenv;
     char *shell;
     char *command;
     char **argv;

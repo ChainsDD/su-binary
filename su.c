@@ -116,6 +116,24 @@ static int from_init(struct su_initiator *from)
     return 0;
 }
 
+static void populate_environment(const struct su_context *ctx)
+{
+    struct passwd *pw;
+
+    if (ctx->to.keepenv)
+        return;
+
+    pw = getpwuid(ctx->to.uid);
+    if (pw) {
+        setenv("HOME", pw->pw_dir, 1);
+        setenv("SHELL", ctx->to.shell, 1);
+        if (ctx->to.login || ctx->to.uid) {
+            setenv("USER", pw->pw_name, 1);
+            setenv("LOGNAME", pw->pw_name, 1);
+        }
+    }
+}
+
 static void socket_cleanup(void)
 {
     unlink(socket_path);
@@ -259,8 +277,9 @@ static void usage(int status)
     "Options:\n"
     "  -c, --command COMMAND         pass COMMAND to the invoked shell\n"
     "  -h, --help                    display this help message and exit\n"
-    "  -, -l, --login, -m, -p,\n"
-    "  --preserve-environment        do nothing, kept for compatibility\n"
+    "  -, -l, --login                pretend the shell to be a login shell\n"
+    "  -m, -p,\n"
+    "  --preserve-environment        do not change environment variables\n"
     "  -s, --shell SHELL             use SHELL instead of the default " DEFAULT_SHELL "\n"
     "  -v, --version                 display version number and exit\n"
     "  -V                            display version code and exit,\n"
@@ -299,6 +318,9 @@ static void allow(const struct su_context *ctx)
         strcpy(p + 1, arg0);
         arg0 = p;
     }
+
+    populate_environment(ctx);
+
     if (setresgid(ctx->to.uid, ctx->to.uid, ctx->to.uid)) {
         PLOGE("setresgid (%u)", ctx->to.uid);
         exit(EXIT_FAILURE);
@@ -343,6 +365,7 @@ int main(int argc, char *argv[])
         .to = {
             .uid = AID_ROOT,
             .login = 0,
+            .keepenv = 0,
             .shell = DEFAULT_SHELL,
             .command = NULL,
             .argv = argv,
@@ -375,8 +398,9 @@ int main(int argc, char *argv[])
         case 'l':
             ctx.to.login = 1;
             break;
-        case 'm':    /* for compatibility */
+        case 'm':
         case 'p':
+            ctx.to.keepenv = 1;
             break;
         case 's':
             ctx.to.shell = optarg;
