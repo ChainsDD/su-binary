@@ -116,9 +116,62 @@ static int from_init(struct su_initiator *from)
     return 0;
 }
 
+static char *get_parent_env(const struct su_initiator *from, const char *var, size_t varlen)
+{
+    char path[PATH_MAX];
+    char env[8129];
+    char *val = NULL;
+    char *p;
+    int fd = -1;
+    int len, rest, i, l;
+
+    if (seteuid(0)) {
+        PLOGE("seteuid (root)");
+        return NULL;
+    }
+
+    snprintf(path, sizeof(path), "/proc/%u/environ", from->pid);
+    fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        PLOGE("Opening environment");
+        return NULL;
+    }
+
+    rest = 0;
+    do {
+        len = read(fd, env + rest, sizeof(env) - rest);
+        if (len < 0)
+            PLOGE("Reading environment");
+        if (len <= 0)
+            break;
+        len += rest;
+
+        for (i = 0; i < len; i += l) {
+            l = strnlen(env + i, len - i) + 1;
+            if (i + l > len)
+                break;
+
+            if (!strncmp(var, env + i, varlen) && env[i + varlen] == '=') {
+                p = env + i + varlen + 1;
+                val = malloc(l - varlen - 1);
+                if (val)
+                    strncpy(val, p, l - varlen - 1);
+                goto out;
+            }
+        }
+        rest = len - i;
+        memmove(env, env + i, rest);
+    } while (1);
+out:
+    close(fd);
+
+    return val;
+}
+
 static void populate_environment(const struct su_context *ctx)
 {
     struct passwd *pw;
+    char *val;
 
     if (ctx->to.keepenv)
         return;
@@ -131,6 +184,13 @@ static void populate_environment(const struct su_context *ctx)
             setenv("USER", pw->pw_name, 1);
             setenv("LOGNAME", pw->pw_name, 1);
         }
+    }
+
+    if (ctx->sdk_version >= 14) {
+        val = get_parent_env(&ctx->from, "LD_LIBRARY_PATH", sizeof("LD_LIBRARY_PATH") - 1);
+        if (val)
+            if (setenv("LD_LIBRARY_PATH", val, 1))
+                PLOGE("setenv(LD_LIBRARY_PATH)");
     }
 }
 
