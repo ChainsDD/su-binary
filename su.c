@@ -319,6 +319,15 @@ static void allow(const struct su_context *ctx)
         arg0 = p;
     }
 
+    /*
+     * Set effective uid back to root, otherwise setres[ug]id will fail
+     * if ctx->to.uid isn't root.
+     */
+    if (seteuid(0)) {
+        PLOGE("seteuid (root)");
+        exit(EXIT_FAILURE);
+    }
+
     populate_environment(ctx);
 
     if (setresgid(ctx->to.uid, ctx->to.uid, ctx->to.uid)) {
