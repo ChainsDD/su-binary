@@ -125,11 +125,6 @@ static char *get_parent_env(const struct su_initiator *from, const char *var, si
     int fd = -1;
     int len, rest, i, l;
 
-    if (seteuid(0)) {
-        PLOGE("seteuid (root)");
-        return NULL;
-    }
-
     snprintf(path, sizeof(path), "/proc/%u/environ", from->pid);
     fd = open(path, O_RDONLY);
     if (fd < 0) {
@@ -377,6 +372,15 @@ static void allow(const struct su_context *ctx)
         *p = '-';
         strcpy(p + 1, arg0);
         arg0 = p;
+    }
+
+    /*
+     * Set effective uid back to root, otherwise setres[ug]id will fail
+     * if ctx->to.uid isn't root.
+     */
+    if (seteuid(0)) {
+        PLOGE("seteuid (root)");
+        exit(EXIT_FAILURE);
     }
 
     populate_environment(ctx);
