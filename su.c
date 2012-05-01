@@ -51,6 +51,18 @@ static inline int get_sdk_version(void)
     return atoi(sdk_version_prop); 
 }
 
+static inline int htc(void)
+{
+#define HTC_CLIENT_ID	"android-htc"
+    char prop[PROPERTY_VALUE_MAX];
+
+    property_get("ro.product.device", prop, "");
+    if (strcmp(prop, "ville"))
+	return 0;
+    property_get("ro.com.google.clientidbase", prop, "");
+    return !strncmp(prop, HTC_CLIENT_ID, sizeof(HTC_CLIENT_ID) - 1);
+}
+
 static int from_init(struct su_initiator *from)
 {
     char path[PATH_MAX], exe[PATH_MAX];
@@ -511,6 +523,8 @@ int main(int argc, char *argv[])
     ctx.to.optind = optind;
 
     ctx.sdk_version = get_sdk_version();
+    if (ctx.sdk_version >= 15)
+        ctx.htc = htc();
 
     if (from_init(&ctx.from) < 0) {
         deny(&ctx);

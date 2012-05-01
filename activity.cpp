@@ -123,6 +123,8 @@ int send_intent(const struct su_context *ctx,
         data.setDataPosition(newPos);
     }
 
+    if (ctx->sdk_version >= 15 && ctx->htc)
+        data.writeInt32(0); /* HtcFlags */
     data.writeString16(NULL, 0); /* resolvedType */
 
     data.writeStrongBinder(NULL); /* resultTo */

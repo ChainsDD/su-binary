@@ -71,6 +71,7 @@ struct su_context {
     struct su_request to;
     mode_t umask;
     int sdk_version;
+    int htc;
 };
 
 enum {
