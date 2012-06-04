@@ -24,8 +24,8 @@ int send_intent(const struct su_context *ctx,
 {
 	char command[PATH_MAX];
 
-	sprintf(command, "/system/bin/am broadcast -a %s --es socket %s --ei version_code %d > /dev/null",
-			action, socket_path, VERSION_CODE);	
+	sprintf(command, "/system/bin/am broadcast -a '%s' --es socket '%s' --ei caller_uid '%d' --ei allow '%d' --ei version_code '%d' > /dev/null",
+			action, socket_path, ctx->from.uid, allow, VERSION_CODE);	
 
     // before sending the intent, make sure the (uid and euid) and (gid and egid) match,
     // otherwise LD_LIBRARY_PATH is wiped in Android 4.0+.
