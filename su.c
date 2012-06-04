@@ -42,15 +42,6 @@
 /* Still lazt, will fix this */
 static char socket_path[PATH_MAX];
 
-
-static inline int get_sdk_version(void)
-{
-    char sdk_version_prop[PROPERTY_VALUE_MAX];
-
-    property_get("ro.build.version.sdk", sdk_version_prop, "0");
-    return atoi(sdk_version_prop); 
-}
-
 static int from_init(struct su_initiator *from)
 {
     char path[PATH_MAX], exe[PATH_MAX];
@@ -454,8 +445,6 @@ int main(int argc, char *argv[])
         optind++;
     }
     ctx.to.optind = optind;
-
-    ctx.sdk_version = get_sdk_version();
 
     if (from_init(&ctx.from) < 0) {
         deny(&ctx);
