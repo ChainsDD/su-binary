@@ -2,7 +2,7 @@ LOCAL_PATH := $(call my-dir)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := su
-LOCAL_SRC_FILES := su.c db.c activity.c
+LOCAL_SRC_FILES := su.c db.c activity.c utils.c
 
 LOCAL_C_INCLUDES += external/sqlite/dist
 

@@ -38,6 +38,7 @@
 #include <cutils/log.h>
 
 #include "su.h"
+#include "utils.h"
 
 /* Still lazt, will fix this */
 static char socket_path[PATH_MAX];
@@ -375,8 +376,10 @@ int main(int argc, char *argv[])
     };
     struct stat st;
     int socket_serv_fd, fd;
-    char buf[64], *result;
-    int c, dballow;
+    char buf[64], *result, debuggable[PROPERTY_VALUE_MAX];
+    char enabled[PROPERTY_VALUE_MAX], build_type[PROPERTY_VALUE_MAX];
+    char cm_version[PROPERTY_VALUE_MAX];;
+    int c, dballow, len;
     struct option long_opts[] = {
         { "command",			required_argument,	NULL, 'c' },
         { "help",			no_argument,		NULL, 'h' },
@@ -386,6 +389,8 @@ int main(int argc, char *argv[])
         { "version",			no_argument,		NULL, 'v' },
         { NULL, 0, NULL, 0 },
     };
+    char *data;
+    unsigned sz;
 
     while ((c = getopt_long(argc, argv, "+c:hlmps:Vv", long_opts, NULL)) != -1) {
         switch(c) {
@@ -450,7 +455,51 @@ int main(int argc, char *argv[])
         deny(&ctx);
     }
 
+    // we can't simply use the property service, since we aren't launched from init and
+    // can't trust the location of the property workspace. find the properties ourselves.
+    data = read_file("/default.prop", &sz);
+    get_property(data, debuggable, "ro.debuggable", "0");
+    free(data);
+
+    data = read_file("/system/build.prop", &sz);
+    get_property(data, cm_version, "ro.cm.version", "");
+    get_property(data, build_type, "ro.build.type", "");
+    free(data);
+
+    data = read_file("/data/property/persist.sys.root_access", &sz);
+    if (data != NULL) {
+        len = strlen(data);
+        if (len >= PROPERTY_VALUE_MAX)
+            memcpy(enabled, "1", 2);
+        else
+            memcpy(enabled, data, len + 1);
+        free(data);
+    } else
+        memcpy(enabled, "1", 2);
+
     ctx.umask = umask(027);
+
+    // CyanogenMod-specific behavior
+    if (strlen(cm_version) > 0) {
+        // only allow su on debuggable builds
+        if (strcmp("1", debuggable) != 0) {
+            LOGE("Root access is disabled on non-debug builds");
+            deny(&ctx);
+        }
+
+        // enforce persist.sys.root_access on non-eng builds
+        if (strcmp("eng", build_type) != 0 &&
+               (atoi(enabled) & 1) != 1 ) {
+            LOGE("Root access is disabled by system setting - enable it under settings -> developer options");
+            deny(&ctx);
+        }
+
+        // disallow su in a shell if appropriate
+        if (ctx.from.uid == AID_SHELL && (atoi(enabled) == 1)) {
+            LOGE("Root access is disabled by a system setting - enable it under settings -> developer options");
+            deny(&ctx);
+        }
+    }
 
     if (ctx.from.uid == AID_ROOT || ctx.from.uid == AID_SHELL)
         allow(&ctx);
