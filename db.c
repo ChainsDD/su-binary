@@ -15,44 +15,93 @@
 */
 
 #include <stdlib.h>
-#include <stdio.h>
+#include <sys/stat.h>
 #include <limits.h>
 #include <cutils/log.h>
 
+#include <sqlite3.h>
+
 #include "su.h"
+
+static sqlite3 *db_init(void)
+{
+    sqlite3 *db;
+    int rc;
+
+    rc = sqlite3_open_v2(REQUESTOR_DATABASE_PATH, &db, SQLITE_OPEN_READONLY, NULL);
+    if ( rc ) {
+        LOGE("Couldn't open database: %s", sqlite3_errmsg(db));
+        return NULL;
+    }
+
+    // Create an automatic busy handler in case the db is locked
+    sqlite3_busy_timeout(db, 1000);
+    return db;
+}
+
+static int db_check(sqlite3 *db, const struct su_context *ctx)
+{
+    char sql[4096];
+    char *zErrmsg;
+    char **result;
+    int nrow,ncol;
+    int allow = DB_INTERACTIVE;
+
+    sqlite3_snprintf(
+        sizeof(sql), sql,
+        "SELECT _id,name,allow FROM apps WHERE uid=%u AND exec_uid=%u AND exec_cmd='%q';",
+        ctx->from.uid, ctx->to.uid, get_command(&ctx->to)
+    );
+
+    if (strlen(sql) >= sizeof(sql)-1)
+        return DB_DENY;
+        
+    int error = sqlite3_get_table(db, sql, &result, &nrow, &ncol, &zErrmsg);
+    if (error != SQLITE_OK) {
+        LOGE("Database check failed with error message %s", zErrmsg);
+        if (error == SQLITE_BUSY) {
+            LOGE("Specifically, the database is busy");
+        }
+        return DB_DENY;
+    }
+    
+    if (nrow == 0 || ncol != 3)
+        goto out;
+        
+    if (strcmp(result[0], "_id") == 0 && strcmp(result[2], "allow") == 0) {
+        if (strcmp(result[5], "1") == 0) {
+            allow = DB_ALLOW;
+        } else if (strcmp(result[5], "-1") == 0){
+            allow = DB_INTERACTIVE;
+        } else {
+            allow = DB_DENY;
+        }
+    }
+
+out:
+    sqlite3_free_table(result);
+    
+    return allow;
+}
 
 int database_check(const struct su_context *ctx)
 {
-    FILE *fp;
-    char allow = '-';
-    char *filename = malloc(snprintf(NULL, 0, "%s/%u-%u", REQUESTOR_STORED_PATH, ctx->from.uid, ctx->to.uid) + 1);
-    sprintf(filename, "%s/%u-%u", REQUESTOR_STORED_PATH, ctx->from.uid, ctx->to.uid);
-    if ((fp = fopen(filename, "r"))) {
-    LOGD("Found file");
-        char cmd[PATH_MAX];
-        fgets(cmd, sizeof(cmd), fp);
-        int last = strlen(cmd) - 1;
-        LOGD("this is the last character %u of the string", cmd[5]);
-        if (cmd[last] == '\n') {
-            cmd[last] = '\0';
-        }
-        LOGD("Comparing %c %s, %u to %s", cmd[last - 2], cmd, last, get_command(&ctx->to));
-        if (strcmp(cmd, get_command(&ctx->to)) == 0) {
-            allow = fgetc(fp);
-        }
-        fclose(fp);
-    } else if ((fp = fopen(REQUESTOR_STORED_DEFAULT, "r"))) {
-    LOGD("Using default");
-        allow = fgetc(fp);
-        fclose(fp);
-    }
-    free(filename);
+    sqlite3 *db;
+    int dballow;
 
-    if (allow == '1') {
-        return DB_ALLOW;
-    } else if (allow == '0') {
-        return DB_DENY;
-    } else {
+    LOGE("sudb - Opening database");
+    db = db_init();
+    if (!db) {
+        LOGE("sudb - Could not open database, prompt user");
+        // if the database could not be opened, we can assume we need to
+        // prompt the user
         return DB_INTERACTIVE;
     }
+
+    LOGE("sudb - Database opened");
+    dballow = db_check(db, ctx);
+    // Close the database, we're done with it. If it stays open, it will cause problems
+    sqlite3_close(db);
+    LOGE("sudb - Database closed");
+    return dballow;
 }

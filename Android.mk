@@ -4,8 +4,11 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := su
 LOCAL_SRC_FILES := su.c db.c activity.c utils.c
 
+LOCAL_C_INCLUDES += external/sqlite/dist
+
 LOCAL_STATIC_LIBRARIES := \
     liblog \
+    libsqlite \
     libc \
 
 LOCAL_MODULE_PATH := $(TARGET_OUT_OPTIONAL_EXECUTABLES)
