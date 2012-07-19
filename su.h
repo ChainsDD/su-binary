@@ -88,6 +88,17 @@ static inline char *get_command(const struct su_request *to)
 	return (to->command) ? to->command : to->shell;
 }
 
+#include <cutils/log.h>
+#ifndef LOGE
+#define LOGE(...) ALOGE(__VA_ARGS__)
+#endif
+#ifndef LOGD
+#define LOGD(...) ALOGD(__VA_ARGS__)
+#endif
+#ifndef LOGW
+#define LOGW(...) ALOGW(__VA_ARGS__)
+#endif
+
 #if 0
 #undef LOGE
 #define LOGE(fmt,args...) fprintf(stderr, fmt, ##args)

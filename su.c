@@ -35,7 +35,6 @@
 
 #include <private/android_filesystem_config.h>
 #include <cutils/properties.h>
-#include <cutils/log.h>
 
 #include "su.h"
 #include "utils.h"
