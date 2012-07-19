@@ -23,7 +23,10 @@
 int send_intent(const struct su_context *ctx,
                 const char *socket_path, int allow, const char *action)
 {
-	char command[PATH_MAX];
+    char command[PATH_MAX];
+    pid_t euid;
+    gid_t egid;
+    int rc;
 
 	sprintf(command, "/system/bin/am broadcast -a '%s' --es socket '%s' --ei caller_uid '%d' --ei allow '%d' --ei version_code '%d' > /dev/null",
 			action, socket_path, ctx->from.uid, allow, VERSION_CODE);	
@@ -71,7 +74,13 @@ int send_intent(const struct su_context *ctx,
 
     // sane value so "am" works
     setenv("LD_LIBRARY_PATH", "/vendor/lib:/system/lib", 1);
+    euid = geteuid();
+    egid = getegid();
     setegid(getgid());
     seteuid(getuid());
-    return system(command);
+    rc = system(command);
+    seteuid(0);
+    setegid(egid);
+    seteuid(euid);
+	return rc;
 }
