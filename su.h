@@ -25,7 +25,7 @@
 
 #define REQUESTOR "com.noshufou.android.su"
 #define REQUESTOR_DATA_PATH "/data/data/" REQUESTOR
-#define REQUESTOR_CACHE_PATH REQUESTOR_DATA_PATH "/cache"
+#define REQUESTOR_CACHE_PATH "/dev/" REQUESTOR
 
 #define REQUESTOR_STORED_PATH REQUESTOR_DATA_PATH "/files/stored"
 #define REQUESTOR_STORED_DEFAULT REQUESTOR_STORED_PATH "/default"
