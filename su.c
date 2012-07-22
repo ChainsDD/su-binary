@@ -212,15 +212,15 @@ static int socket_send_request(int fd, const struct su_context *ctx)
     size_t bin_size, cmd_size;
     char *cmd;
 
-#define write_token(fd, data)				\
-do {							\
-	uint32_t __data = htonl(data);			\
-	size_t __count = sizeof(__data);		\
-	size_t __len = write((fd), &__data, __count);	\
-	if (__len != __count) {				\
-		PLOGE("write(" #data ")");		\
-		return -1;				\
-	}						\
+#define write_token(fd, data)                           \
+do {                                                    \
+        uint32_t __data = htonl(data);                  \
+        size_t __count = sizeof(__data);                \
+        size_t __len = write((fd), &__data, __count);   \
+        if (__len != __count) {                         \
+                PLOGE("write(" #data ")");              \
+                return -1;                              \
+        }                                               \
 } while (0)
 
     write_token(fd, PROTO_VERSION);
@@ -249,7 +249,7 @@ do {							\
 static int socket_receive_result(int fd, char *result, ssize_t result_len)
 {
     ssize_t len;
-    
+
     len = read(fd, result, result_len-1);
     if (len < 0) {
         PLOGE("read(result)");
@@ -284,7 +284,7 @@ static void deny(const struct su_context *ctx)
     char *cmd = get_command(&ctx->to);
 
     send_intent(ctx, "", 0, ACTION_RESULT);
-    LOGW("request rejected (%u->%u %s)", ctx->from.uid, ctx->to.uid, cmd);
+    ALOGW("request rejected (%u->%u %s)", ctx->from.uid, ctx->to.uid, cmd);
     fprintf(stderr, "%s\n", strerror(EACCES));
     exit(EXIT_FAILURE);
 }
@@ -331,11 +331,11 @@ static void allow(const struct su_context *ctx)
         exit(EXIT_FAILURE);
     }
 
-#define PARG(arg)									\
-    (ctx->to.optind + (arg) < ctx->to.argc) ? " " : "",					\
+#define PARG(arg)                                                                       \
+    (ctx->to.optind + (arg) < ctx->to.argc) ? " " : "",                                 \
     (ctx->to.optind + (arg) < ctx->to.argc) ? ctx->to.argv[ctx->to.optind + (arg)] : ""
 
-    LOGD("%u %s executing %u %s using shell %s : %s%s%s%s%s%s%s%s%s%s%s%s%s%s",
+    ALOGD("%u %s executing %u %s using shell %s : %s%s%s%s%s%s%s%s%s%s%s%s%s%s",
             ctx->from.uid, ctx->from.bin,
             ctx->to.uid, get_command(&ctx->to), ctx->to.shell,
             arg0, PARG(0), PARG(1), PARG(2), PARG(3), PARG(4), PARG(5),
@@ -381,12 +381,12 @@ int main(int argc, char *argv[])
     char cm_version[PROPERTY_VALUE_MAX];;
     int c, dballow, len;
     struct option long_opts[] = {
-        { "command",			required_argument,	NULL, 'c' },
-        { "help",			no_argument,		NULL, 'h' },
-        { "login",			no_argument,		NULL, 'l' },
-        { "preserve-environment",	no_argument,		NULL, 'p' },
-        { "shell",			required_argument,	NULL, 's' },
-        { "version",			no_argument,		NULL, 'v' },
+        { "command",                    required_argument,      NULL, 'c' },
+        { "help",                       no_argument,            NULL, 'h' },
+        { "login",                      no_argument,            NULL, 'l' },
+        { "preserve-environment",       no_argument,            NULL, 'p' },
+        { "shell",                      required_argument,      NULL, 's' },
+        { "version",                    no_argument,            NULL, 'v' },
         { NULL, 0, NULL, 0 },
     };
     char *data;
@@ -437,7 +437,7 @@ int main(int argc, char *argv[])
             errno = 0;
             ctx.to.uid = strtoul(argv[optind], &endptr, 10);
             if (errno || *endptr) {
-                LOGE("Unknown id: %s\n", argv[optind]);
+                ALOGE("Unknown id: %s\n", argv[optind]);
                 fprintf(stderr, "Unknown id: %s\n", argv[optind]);
                 exit(EXIT_FAILURE);
             }
@@ -483,20 +483,20 @@ int main(int argc, char *argv[])
     if (strlen(cm_version) > 0) {
         // only allow su on debuggable builds
         if (strcmp("1", debuggable) != 0) {
-            LOGE("Root access is disabled on non-debug builds");
+            ALOGE("Root access is disabled on non-debug builds");
             deny(&ctx);
         }
 
         // enforce persist.sys.root_access on non-eng builds
         if (strcmp("eng", build_type) != 0 &&
                (atoi(enabled) & 1) != 1 ) {
-            LOGE("Root access is disabled by system setting - enable it under settings -> developer options");
+            ALOGE("Root access is disabled by system setting - enable it under settings -> developer options");
             deny(&ctx);
         }
 
         // disallow su in a shell if appropriate
         if (ctx.from.uid == AID_SHELL && (atoi(enabled) == 1)) {
-            LOGE("Root access is disabled by a system setting - enable it under settings -> developer options");
+            ALOGE("Root access is disabled by a system setting - enable it under settings -> developer options");
             deny(&ctx);
         }
     }
@@ -511,7 +511,7 @@ int main(int argc, char *argv[])
 
     if (st.st_gid != st.st_uid)
     {
-        LOGE("Bad uid/gid %d/%d for Superuser Requestor application",
+        ALOGE("Bad uid/gid %d/%d for Superuser Requestor application",
                 (int)st.st_uid, (int)st.st_gid);
         deny(&ctx);
     }
@@ -542,7 +542,7 @@ int main(int argc, char *argv[])
         case DB_INTERACTIVE: break;
         default: deny(&ctx);
     }
-    
+
     socket_serv_fd = socket_create_temp(socket_path, sizeof(socket_path));
     if (socket_serv_fd < 0) {
         deny(&ctx);
@@ -577,9 +577,9 @@ int main(int argc, char *argv[])
 
     result = buf;
 
-#define SOCKET_RESPONSE	"socket:"
+#define SOCKET_RESPONSE "socket:"
     if (strncmp(result, SOCKET_RESPONSE, sizeof(SOCKET_RESPONSE) - 1))
-        LOGW("SECURITY RISK: Requestor still receives credentials in intent");
+        ALOGW("SECURITY RISK: Requestor still receives credentials in intent");
     else
         result += sizeof(SOCKET_RESPONSE) - 1;
 
@@ -588,7 +588,7 @@ int main(int argc, char *argv[])
     } else if (!strcmp(result, "ALLOW")) {
         allow(&ctx);
     } else {
-        LOGE("unknown response from Superuser Requestor: %s", result);
+        ALOGE("unknown response from Superuser Requestor: %s", result);
         deny(&ctx);
     }
 
