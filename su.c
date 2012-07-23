@@ -169,6 +169,10 @@ static int socket_create_temp(char *path, size_t len)
         PLOGE("socket");
         return -1;
     }
+    if (fcntl(fd, F_SETFD, FD_CLOEXEC)) {
+        PLOGE("fcntl FD_CLOEXEC");
+        goto err;
+    }
 
     memset(&sun, 0, sizeof(sun));
     sun.sun_family = AF_LOCAL;
