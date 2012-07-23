@@ -15,72 +15,61 @@
 ** limitations under the License.
 */
 
+#include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <paths.h>
+#include <sys/wait.h>
 
 #include "su.h"
 
 int send_intent(const struct su_context *ctx,
                 const char *socket_path, int allow, const char *action)
 {
-    char command[PATH_MAX];
-    pid_t euid;
-    gid_t egid;
     int rc;
 
-	sprintf(command, "/system/bin/am broadcast -a '%s' --es socket '%s' --ei caller_uid '%d' --ei allow '%d' --ei version_code '%d' > /dev/null",
-			action, socket_path, ctx->from.uid, allow, VERSION_CODE);	
+    pid_t pid = fork();
+    /* Child */
+    if (!pid) {
+        char command[ARG_MAX];
 
-    // before sending the intent, make sure the (uid and euid) and (gid and egid) match,
-    // otherwise LD_LIBRARY_PATH is wiped in Android 4.0+.
-    // Also, sanitize all secure environment variables (from linker_environ.c in linker).
+        snprintf(command, sizeof(command),
+            "exec /system/bin/am broadcast -a %s --es socket '%s' "
+            "--ei caller_uid %d --ei allow %d "
+            "--ei version_code %d",
+            action, socket_path, ctx->from.uid, allow, VERSION_CODE);
+        char *args[] = { "sh", "-c", command, NULL, };
 
-    /* The same list than GLibc at this point */
-    static const char* const unsec_vars[] = {
-        "GCONV_PATH",
-        "GETCONF_DIR",
-        "HOSTALIASES",
-        "LD_AUDIT",
-        "LD_DEBUG",
-        "LD_DEBUG_OUTPUT",
-        "LD_DYNAMIC_WEAK",
-        "LD_LIBRARY_PATH",
-        "LD_ORIGIN_PATH",
-        "LD_PRELOAD",
-        "LD_PROFILE",
-        "LD_SHOW_AUXV",
-        "LD_USE_LOAD_BIAS",
-        "LOCALDOMAIN",
-        "LOCPATH",
-        "MALLOC_TRACE",
-        "MALLOC_CHECK_",
-        "NIS_PATH",
-        "NLSPATH",
-        "RESOLV_HOST_CONF",
-        "RES_OPTIONS",
-        "TMPDIR",
-        "TZDIR",
-        "LD_AOUT_LIBRARY_PATH",
-        "LD_AOUT_PRELOAD",
-        // not listed in linker, used due to system() call
-        "IFS",
-    };
-    const char* const* cp   = unsec_vars;
-    const char* const* endp = cp + sizeof(unsec_vars)/sizeof(unsec_vars[0]);
-    while (cp < endp) {
-        unsetenv(*cp);
-        cp++;
+        /*
+         * before sending the intent, make sure the effective uid/gid match
+         * the real uid/gid, otherwise LD_LIBRARY_PATH is wiped
+         * in Android 4.0+.
+         */
+        set_identity(ctx->from.uid);
+        int zero = open("/dev/zero", O_RDONLY | O_CLOEXEC);
+        dup2(zero, 0);
+        int null = open("/dev/null", O_WRONLY | O_CLOEXEC);
+        dup2(null, 1);
+        dup2(null, 2);
+        LOGD("Executing %s\n", command);
+        execv(_PATH_BSHELL, args);
+        PLOGE("exec am");
+        _exit(EXIT_FAILURE);
     }
-
-    // sane value so "am" works
-    setenv("LD_LIBRARY_PATH", "/vendor/lib:/system/lib", 1);
-    euid = geteuid();
-    egid = getegid();
-    setegid(getgid());
-    seteuid(getuid());
-    rc = system(command);
-    seteuid(0);
-    setegid(egid);
-    seteuid(euid);
-	return rc;
+    /* Parent */
+    if (pid < 0) {
+        PLOGE("fork");
+        return -1;
+    }
+    pid = waitpid(pid, &rc, 0);
+    if (pid < 0) {
+        PLOGE("waitpid");
+        return -1;
+    }
+    if (!WIFEXITED(rc) || WEXITSTATUS(rc)) {
+        LOGE("am returned error %d\n", rc);
+        return -1;
+    }
+    return 0;
 }

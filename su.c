@@ -123,6 +123,26 @@ static void populate_environment(const struct su_context *ctx)
     }
 }
 
+void set_identity(unsigned int uid)
+{
+    /*
+     * Set effective uid back to root, otherwise setres[ug]id will fail
+     * if uid isn't root.
+     */
+    if (seteuid(0)) {
+        PLOGE("seteuid (root)");
+        exit(EXIT_FAILURE);
+    }
+    if (setresgid(uid, uid, uid)) {
+        PLOGE("setresgid (%u)", uid);
+        exit(EXIT_FAILURE);
+    }
+    if (setresuid(uid, uid, uid)) {
+        PLOGE("setresuid (%u)", uid);
+        exit(EXIT_FAILURE);
+    }
+}
+
 static void socket_cleanup(void)
 {
     unlink(socket_path);
@@ -308,25 +328,8 @@ static void allow(const struct su_context *ctx)
         arg0 = p;
     }
 
-    /*
-     * Set effective uid back to root, otherwise setres[ug]id will fail
-     * if ctx->to.uid isn't root.
-     */
-    if (seteuid(0)) {
-        PLOGE("seteuid (root)");
-        exit(EXIT_FAILURE);
-    }
-
     populate_environment(ctx);
-
-    if (setresgid(ctx->to.uid, ctx->to.uid, ctx->to.uid)) {
-        PLOGE("setresgid (%u)", ctx->to.uid);
-        exit(EXIT_FAILURE);
-    }
-    if (setresuid(ctx->to.uid, ctx->to.uid, ctx->to.uid)) {
-        PLOGE("setresuid (%u)", ctx->to.uid);
-        exit(EXIT_FAILURE);
-    }
+	set_identity(ctx->to.uid);
 
 #define PARG(arg)									\
     (ctx->to.optind + (arg) < ctx->to.argc) ? " " : "",					\
@@ -498,6 +501,11 @@ int main(int argc, char *argv[])
         }
     }
 
+    /*
+     * set LD_LIBRARY_PATH if the linker has wiped out it due to we're suid.
+     * This occurs on Android 4.0+
+     */
+    setenv("LD_LIBRARY_PATH", "/vendor/lib:/system/lib", 0);
     if (ctx.from.uid == AID_ROOT || ctx.from.uid == AID_SHELL)
         allow(&ctx);
 

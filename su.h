@@ -79,7 +79,7 @@ enum {
 };
 
 extern int database_check(const struct su_context *ctx);
-
+extern void set_identity(unsigned int uid);
 extern int send_intent(const struct su_context *ctx,
                        const char *socket_path, int allow, const char *action);
 
