@@ -24,11 +24,9 @@
 #include <unistd.h>
 #include <limits.h>
 #include <fcntl.h>
-#include <errno.h>
 #include <endian.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <getopt.h>
 #include <stdint.h>
 #include <pwd.h>
