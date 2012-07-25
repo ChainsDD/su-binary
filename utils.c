@@ -14,6 +14,8 @@
 ** limitations under the License.
 */
 
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <limits.h>
 #include <fcntl.h>
@@ -27,35 +29,29 @@
 #include <cutils/properties.h>
 
 /* reads a file, making sure it is terminated with \n \0 */
-char* read_file(const char *fn, unsigned *_sz)
+char* read_file(const char *fn)
 {
-    char *data;
-    int sz;
-    int fd;
+    struct stat st;
+    char *data = NULL;
 
-    data = 0;
-    fd = open(fn, O_RDONLY);
-    if(fd < 0) return 0;
+    int fd = open(fn, O_RDONLY);
+    if (fd < 0) return data;
 
-    sz = lseek(fd, 0, SEEK_END);
-    if(sz < 0) goto oops;
+    if (fstat(fd, &st)) goto oops;
 
-    if(lseek(fd, 0, SEEK_SET) != 0) goto oops;
+    data = malloc(st.st_size + 2);
+    if (!data) goto oops;
 
-    data = (char*) malloc(sz + 2);
-    if(data == 0) goto oops;
-
-    if(read(fd, data, sz) != sz) goto oops;
+    if (read(fd, data, st.st_size) != st.st_size) goto oops;
     close(fd);
-    data[sz] = '\n';
-    data[sz+1] = 0;
-    if(_sz) *_sz = sz;
+    data[st.st_size] = '\n';
+    data[st.st_size + 1] = 0;
     return data;
 
 oops:
     close(fd);
-    if(data != 0) free(data);
-    return 0;
+    if (data) free(data);
+    return NULL;
 }
 
 int get_property(const char *data, char *found, const char *searchkey, const char *not_found)
@@ -100,4 +96,18 @@ defval:
     len = strlen(not_found);
     memcpy(found, not_found, len + 1);
     return len;
+}
+
+/*
+ * Fast version of get_property which purpose is to check
+ * whether the property with given prefix exists.
+ *
+ * Assume nobody is stupid enough to put a propery with prefix ro.cm.version
+ * in his build.prop on a non-CM ROM and comment it out.
+ */
+int check_property(const char *data, const char *prefix)
+{
+    if (!data)
+        return 0;
+    return strstr(data, prefix) != NULL;
 }

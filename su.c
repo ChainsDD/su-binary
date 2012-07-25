@@ -368,18 +368,16 @@ static void allow(const struct su_context *ctx)
 int access_disabled(const struct su_initiator *from)
 {
     char *data;
-    char cm_version[PROPERTY_VALUE_MAX], build_type[PROPERTY_VALUE_MAX];
+    char build_type[PROPERTY_VALUE_MAX];
     char debuggable[PROPERTY_VALUE_MAX], enabled[PROPERTY_VALUE_MAX];
     size_t len;
-    unsigned int sz;
 
-    data = read_file("/system/build.prop", &sz);
-    get_property(data, cm_version, "ro.cm.version", "");
-    if (strlen(cm_version) > 0) {
+    data = read_file("/system/build.prop");
+    if (check_property(data, "ro.cm.version")) {
         get_property(data, build_type, "ro.build.type", "");
         free(data);
 
-        data = read_file("/default.prop", &sz);
+        data = read_file("/default.prop");
         get_property(data, debuggable, "ro.debuggable", "0");
         free(data);
         /* only allow su on debuggable builds */
@@ -388,7 +386,7 @@ int access_disabled(const struct su_initiator *from)
             return 1;
         }
 
-        data = read_file("/data/property/persist.sys.root_access", &sz);
+        data = read_file("/data/property/persist.sys.root_access");
         if (data != NULL) {
             len = strlen(data);
             if (len >= PROPERTY_VALUE_MAX)

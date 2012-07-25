@@ -18,7 +18,9 @@
 #define _UTILS_H_
 
 /* reads a file, making sure it is terminated with \n \0 */
-char* read_file(const char *fn, unsigned *_sz);
+extern char* read_file(const char *fn);
 
-int get_property(const char *data, char *found, const char *searchkey, const char *not_found);
+extern int get_property(const char *data, char *found, const char *searchkey,
+                        const char *not_found);
+extern int check_property(const char *data, const char *prefix);
 #endif
