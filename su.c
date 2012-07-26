@@ -300,7 +300,7 @@ static void usage(int status)
     exit(status);
 }
 
-static void deny(const struct su_context *ctx)
+static __attribute__ ((noreturn)) void deny(const struct su_context *ctx)
 {
     char *cmd = get_command(&ctx->to);
 
@@ -310,7 +310,7 @@ static void deny(const struct su_context *ctx)
     exit(EXIT_FAILURE);
 }
 
-static void allow(const struct su_context *ctx)
+static __attribute__ ((noreturn)) void allow(const struct su_context *ctx)
 {
     char *arg0;
     int argc, err;
@@ -611,7 +611,4 @@ int main(int argc, char *argv[])
         LOGE("unknown response from Superuser Requestor: %s", result);
         deny(&ctx);
     }
-
-    deny(&ctx);
-    return -1;
 }
