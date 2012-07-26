@@ -70,6 +70,7 @@ struct su_context {
     struct su_initiator from;
     struct su_request to;
     mode_t umask;
+    pid_t child;
     char sock_path[PATH_MAX];
 };
 
@@ -81,7 +82,7 @@ typedef enum {
 
 extern allow_t database_check(const struct su_context *ctx);
 extern void set_identity(unsigned int uid);
-extern int send_intent(const struct su_context *ctx,
+extern int send_intent(struct su_context *ctx,
                        allow_t allow, const char *action);
 
 static inline char *get_command(const struct su_request *to)

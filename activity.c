@@ -24,10 +24,12 @@
 
 #include "su.h"
 
-int send_intent(const struct su_context *ctx,
-                allow_t allow, const char *action)
+int send_intent(struct su_context *ctx, allow_t allow, const char *action)
 {
-    int rc;
+    if (ctx->child) {
+        LOGE("child %d already running", ctx->child);
+        return -1;
+    }
 
     pid_t pid = fork();
     /* Child */
@@ -63,14 +65,6 @@ int send_intent(const struct su_context *ctx,
         PLOGE("fork");
         return -1;
     }
-    pid = waitpid(pid, &rc, 0);
-    if (pid < 0) {
-        PLOGE("waitpid");
-        return -1;
-    }
-    if (!WIFEXITED(rc) || WEXITSTATUS(rc)) {
-        LOGE("am returned error %d\n", rc);
-        return -1;
-    }
+    ctx->child = pid;
     return 0;
 }

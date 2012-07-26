@@ -149,6 +149,38 @@ static void socket_cleanup(struct su_context *ctx)
     }
 }
 
+static void kill_child(pid_t pid)
+{
+    LOGD("killing child %d", pid);
+    if (pid && kill(pid, SIGKILL))
+        PLOGE("kill (%d)", pid);
+}
+
+static void child_cleanup(struct su_context *ctx)
+{
+    pid_t pid = (ctx && ctx->child) ? ctx->child : -1;
+    int rc;
+
+    if (!ctx)
+        LOGE("no context present");
+    if (!ctx->child)
+        LOGE("unexpected child");
+
+    pid = waitpid(pid, &rc, WNOHANG);
+    if (pid < 0) {
+        PLOGE("waitpid");
+        exit(EXIT_FAILURE);
+    }
+    if (WIFEXITED(rc) && WEXITSTATUS(rc)) {
+        LOGE("child %d terminated with error %d", pid, rc);
+        exit(EXIT_FAILURE);
+    }
+    LOGE("child %d terminated, status %d", pid, rc);
+
+    if (ctx)
+        ctx->child = 0;
+}
+
 /*
  * For use in signal handlers/atexit-function
  * NOTE: su_ctx points to main's local variable.
@@ -165,6 +197,12 @@ static void cleanup_signal(int sig)
 {
     socket_cleanup(su_ctx);
     exit(128 + sig);
+}
+
+static void sigchld_handler(int sig)
+{
+    child_cleanup(su_ctx);
+    (void)sig;
 }
 
 static int socket_create_temp(char *path, size_t len)
@@ -308,7 +346,7 @@ static void usage(int status)
     exit(status);
 }
 
-static __attribute__ ((noreturn)) void deny(const struct su_context *ctx)
+static __attribute__ ((noreturn)) void deny(struct su_context *ctx)
 {
     char *cmd = get_command(&ctx->to);
 
@@ -318,7 +356,7 @@ static __attribute__ ((noreturn)) void deny(const struct su_context *ctx)
     exit(EXIT_FAILURE);
 }
 
-static __attribute__ ((noreturn)) void allow(const struct su_context *ctx)
+static __attribute__ ((noreturn)) void allow(struct su_context *ctx)
 {
     char *arg0;
     int argc, err;
@@ -441,7 +479,9 @@ int main(int argc, char *argv[])
             .argc = argc,
             .optind = 0,
         },
+        .child = 0,
     };
+    struct sigaction act;
     struct stat st;
     int c, socket_serv_fd, fd;
     char buf[64], *result;
@@ -515,6 +555,15 @@ int main(int argc, char *argv[])
     }
     ctx.to.optind = optind;
 
+    su_ctx = &ctx;
+    act.sa_handler = sigchld_handler;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = SA_NOCLDSTOP | SA_RESTART;
+    if (sigaction(SIGCHLD, &act, NULL)) {
+        PLOGE("sigaction(SIGCHLD)");
+        exit(EXIT_FAILURE);
+    }
+
     if (from_init(&ctx.from) < 0) {
         deny(&ctx);
     }
@@ -576,7 +625,6 @@ int main(int argc, char *argv[])
         deny(&ctx);
     }
 
-    su_ctx = &ctx;
     signal(SIGHUP, cleanup_signal);
     signal(SIGPIPE, cleanup_signal);
     signal(SIGTERM, cleanup_signal);
@@ -603,6 +651,8 @@ int main(int argc, char *argv[])
     close(fd);
     close(socket_serv_fd);
     socket_cleanup(&ctx);
+
+    kill_child(ctx.child);	/* we're sure am has done its job at this point */
 
     result = buf;
 
