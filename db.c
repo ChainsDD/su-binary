@@ -49,10 +49,10 @@ int database_check(const struct su_context *ctx)
     }
 
     if (allow == '1') {
-        return DB_ALLOW;
+        return ALLOW;
     } else if (allow == '0') {
-        return DB_DENY;
+        return DENY;
     } else {
-        return DB_INTERACTIVE;
+        return INTERACTIVE;
     }
 }

@@ -25,13 +25,14 @@
 #include "su.h"
 
 int send_intent(const struct su_context *ctx,
-                const char *socket_path, int allow, const char *action)
+                allow_t allow, const char *action)
 {
     int rc;
 
     pid_t pid = fork();
     /* Child */
     if (!pid) {
+        const char *socket_path = (allow == INTERACTIVE) ? ctx->sock_path : "";
         char command[ARG_MAX];
 
         snprintf(command, sizeof(command),

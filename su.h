@@ -70,18 +70,19 @@ struct su_context {
     struct su_initiator from;
     struct su_request to;
     mode_t umask;
+    char sock_path[PATH_MAX];
 };
 
-enum {
-    DB_INTERACTIVE,
-    DB_DENY,
-    DB_ALLOW
-};
+typedef enum {
+    INTERACTIVE = -1,
+    DENY = 0,
+    ALLOW = 1,
+} allow_t;
 
-extern int database_check(const struct su_context *ctx);
+extern allow_t database_check(const struct su_context *ctx);
 extern void set_identity(unsigned int uid);
 extern int send_intent(const struct su_context *ctx,
-                       const char *socket_path, int allow, const char *action);
+                       allow_t allow, const char *action);
 
 static inline char *get_command(const struct su_request *to)
 {

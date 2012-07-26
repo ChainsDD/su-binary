@@ -37,9 +37,6 @@
 #include "su.h"
 #include "utils.h"
 
-/* Still lazt, will fix this */
-static char socket_path[PATH_MAX];
-
 static int from_init(struct su_initiator *from)
 {
     char path[PATH_MAX], exe[PATH_MAX];
@@ -143,19 +140,30 @@ void set_identity(unsigned int uid)
     }
 }
 
-static void socket_cleanup(void)
+static void socket_cleanup(struct su_context *ctx)
 {
-    unlink(socket_path);
+    if (ctx && ctx->sock_path[0]) {
+        if (unlink(ctx->sock_path))
+            PLOGE("unlink (%s)", ctx->sock_path);
+        ctx->sock_path[0] = 0;
+    }
 }
+
+/*
+ * For use in signal handlers/atexit-function
+ * NOTE: su_ctx points to main's local variable.
+ *       It's OK due to the program uses exit(3), not return from main()
+ */
+static struct su_context *su_ctx = NULL;
 
 static void cleanup(void)
 {
-    socket_cleanup();
+    socket_cleanup(su_ctx);
 }
 
 static void cleanup_signal(int sig)
 {
-    socket_cleanup();
+    socket_cleanup(su_ctx);
     exit(128 + sig);
 }
 
@@ -304,7 +312,7 @@ static __attribute__ ((noreturn)) void deny(const struct su_context *ctx)
 {
     char *cmd = get_command(&ctx->to);
 
-    send_intent(ctx, "", 0, ACTION_RESULT);
+    send_intent(ctx, DENY, ACTION_RESULT);
     LOGW("request rejected (%u->%u %s)", ctx->from.uid, ctx->to.uid, cmd);
     fprintf(stderr, "%s\n", strerror(EACCES));
     exit(EXIT_FAILURE);
@@ -316,7 +324,7 @@ static __attribute__ ((noreturn)) void allow(const struct su_context *ctx)
     int argc, err;
 
     umask(ctx->umask);
-    send_intent(ctx, "", 1, ACTION_RESULT);
+    send_intent(ctx, ALLOW, ACTION_RESULT);
 
     arg0 = strrchr (ctx->to.shell, '/');
     arg0 = (arg0) ? arg0 + 1 : ctx->to.shell;
@@ -435,9 +443,9 @@ int main(int argc, char *argv[])
         },
     };
     struct stat st;
-    int socket_serv_fd, fd;
+    int c, socket_serv_fd, fd;
     char buf[64], *result;
-    int c, dballow;
+    allow_t dballow;
     struct option long_opts[] = {
         { "command",			required_argument,	NULL, 'c' },
         { "help",			no_argument,		NULL, 'h' },
@@ -557,17 +565,18 @@ int main(int argc, char *argv[])
 
     dballow = database_check(&ctx);
     switch (dballow) {
-        case DB_DENY: deny(&ctx);
-        case DB_ALLOW: allow(&ctx);
-        case DB_INTERACTIVE: break;
-        default: deny(&ctx);
+        case INTERACTIVE: break;
+        case ALLOW: allow(&ctx);	/* never returns */
+        case DENY:
+        default: deny(&ctx);		/* never returns too */
     }
     
-    socket_serv_fd = socket_create_temp(socket_path, sizeof(socket_path));
+    socket_serv_fd = socket_create_temp(ctx.sock_path, sizeof(ctx.sock_path));
     if (socket_serv_fd < 0) {
         deny(&ctx);
     }
 
+    su_ctx = &ctx;
     signal(SIGHUP, cleanup_signal);
     signal(SIGPIPE, cleanup_signal);
     signal(SIGTERM, cleanup_signal);
@@ -576,7 +585,7 @@ int main(int argc, char *argv[])
     signal(SIGABRT, cleanup_signal);
     atexit(cleanup);
 
-    if (send_intent(&ctx, socket_path, -1, ACTION_REQUEST) < 0) {
+    if (send_intent(&ctx, INTERACTIVE, ACTION_REQUEST) < 0) {
         deny(&ctx);
     }
 
@@ -593,7 +602,7 @@ int main(int argc, char *argv[])
 
     close(fd);
     close(socket_serv_fd);
-    socket_cleanup();
+    socket_cleanup(&ctx);
 
     result = buf;
 
