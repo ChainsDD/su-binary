@@ -252,14 +252,17 @@ static int socket_accept(int serv_fd)
 {
     struct timeval tv;
     fd_set fds;
-    int fd;
+    int fd, rc;
 
     /* Wait 20 seconds for a connection, then give up. */
     tv.tv_sec = 20;
     tv.tv_usec = 0;
     FD_ZERO(&fds);
     FD_SET(serv_fd, &fds);
-    if (select(serv_fd + 1, &fds, NULL, NULL, &tv) < 1) {
+    do {
+        rc = select(serv_fd + 1, &fds, NULL, NULL, &tv);
+    } while (rc < 0 && errno == EINTR);
+    if (rc < 1) {
         PLOGE("select");
         return -1;
     }
