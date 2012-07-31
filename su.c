@@ -152,8 +152,22 @@ static void socket_cleanup(struct su_context *ctx)
 static void kill_child(pid_t pid)
 {
     LOGD("killing child %d", pid);
-    if (pid && kill(pid, SIGKILL))
-        PLOGE("kill (%d)", pid);
+    if (pid) {
+        sigset_t set, old;
+
+        sigemptyset(&set);
+        sigaddset(&set, SIGCHLD);
+        if (sigprocmask(SIG_BLOCK, &set, &old)) {
+            PLOGE("sigprocmask(SIG_BLOCK)");
+            return;
+        }
+        if (kill(pid, SIGKILL))
+            PLOGE("kill (%d)", pid);
+        else if (sigsuspend(&old) && errno != EINTR)
+            PLOGE("sigsuspend");
+        if (sigprocmask(SIG_SETMASK, &old, NULL))
+            PLOGE("sigprocmask(SIG_BLOCK)");
+    }
 }
 
 static void child_cleanup(struct su_context *ctx)
@@ -172,10 +186,14 @@ static void child_cleanup(struct su_context *ctx)
         exit(EXIT_FAILURE);
     }
     if (WIFEXITED(rc) && WEXITSTATUS(rc)) {
-        LOGE("child %d terminated with error %d", pid, rc);
+        LOGE("child %d terminated with error %d", pid, WEXITSTATUS(rc));
         exit(EXIT_FAILURE);
     }
-    LOGE("child %d terminated, status %d", pid, rc);
+    if (WIFSIGNALED(rc) && WTERMSIG(rc) != SIGKILL) {
+        LOGE("child %d terminated with signal %d", pid, WTERMSIG(rc));
+        exit(EXIT_FAILURE);
+    }
+    LOGD("child %d terminated, status %d", pid, rc);
 
     if (ctx)
         ctx->child = 0;
