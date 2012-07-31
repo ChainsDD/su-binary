@@ -26,22 +26,29 @@
 
 int send_intent(struct su_context *ctx, allow_t allow, const char *action)
 {
+    const char *socket_path;
+    unsigned int uid = ctx->from.uid;
+
     if (ctx->child) {
         LOGE("child %d already running", ctx->child);
         return -1;
+    }
+    if (allow == INTERACTIVE) {
+        socket_path = ctx->sock_path;
+    } else {
+        socket_path = "";
     }
 
     pid_t pid = fork();
     /* Child */
     if (!pid) {
-        const char *socket_path = (allow == INTERACTIVE) ? ctx->sock_path : "";
         char command[ARG_MAX];
 
         snprintf(command, sizeof(command),
             "exec /system/bin/am broadcast -a %s --es socket '%s' "
             "--ei caller_uid %d --ei allow %d "
             "--ei version_code %d",
-            action, socket_path, ctx->from.uid, allow, VERSION_CODE);
+            action, socket_path, uid, allow, VERSION_CODE);
         char *args[] = { "sh", "-c", command, NULL, };
 
         /*
@@ -49,7 +56,7 @@ int send_intent(struct su_context *ctx, allow_t allow, const char *action)
          * the real uid/gid, otherwise LD_LIBRARY_PATH is wiped
          * in Android 4.0+.
          */
-        set_identity(ctx->from.uid);
+        set_identity(uid);
         int zero = open("/dev/zero", O_RDONLY | O_CLOEXEC);
         dup2(zero, 0);
         int null = open("/dev/null", O_WRONLY | O_CLOEXEC);
