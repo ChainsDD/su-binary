@@ -64,10 +64,12 @@ int send_intent(struct su_context *ctx, allow_t allow, const char *action)
     __sighandler_t handler;
     pid_t pid;
 
-    if (ctx->child) {
-        kill_child(ctx->child);
-        if (ctx->child) {
-            LOGE("child %d is still running", ctx->child);
+    pid = ctx->child;
+    if (pid) {
+        kill_child(pid);
+        pid = ctx->child;
+        if (pid) {
+            LOGE("child %d is still running", pid);
             return -1;
         }
     }

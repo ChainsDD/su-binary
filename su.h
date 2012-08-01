@@ -70,7 +70,7 @@ struct su_context {
     struct su_initiator from;
     struct su_request to;
     mode_t umask;
-    pid_t child;
+    volatile pid_t child;
     char sock_path[PATH_MAX];
 };
 

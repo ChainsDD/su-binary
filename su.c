@@ -151,14 +151,13 @@ static void socket_cleanup(struct su_context *ctx)
 
 static void child_cleanup(struct su_context *ctx)
 {
-    pid_t pid = (ctx && ctx->child) ? ctx->child : -1;
+    pid_t pid = ctx->child;
     int rc;
 
-    if (!ctx)
-        LOGE("no context present");
-    if (!ctx->child)
+    if (!pid) {
         LOGE("unexpected child");
-
+        pid = -1;	/* pick up any child */
+    }
     pid = waitpid(pid, &rc, WNOHANG);
     if (pid < 0) {
         PLOGE("waitpid");
@@ -173,9 +172,7 @@ static void child_cleanup(struct su_context *ctx)
         exit(EXIT_FAILURE);
     }
     LOGD("child %d terminated, status %d", pid, rc);
-
-    if (ctx)
-        ctx->child = 0;
+    ctx->child = 0;
 }
 
 /*
