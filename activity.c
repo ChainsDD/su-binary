@@ -20,26 +20,67 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <paths.h>
-#include <sys/wait.h>
 
 #include "su.h"
+
+static void kill_child(pid_t pid)
+{
+    LOGD("killing child %d", pid);
+    if (pid) {
+        sigset_t set, old;
+
+        sigemptyset(&set);
+        sigaddset(&set, SIGCHLD);
+        if (sigprocmask(SIG_BLOCK, &set, &old)) {
+            PLOGE("sigprocmask(SIG_BLOCK)");
+            return;
+        }
+        if (kill(pid, SIGKILL))
+            PLOGE("kill (%d)", pid);
+        else if (sigsuspend(&old) && errno != EINTR)
+            PLOGE("sigsuspend");
+        if (sigprocmask(SIG_SETMASK, &old, NULL))
+            PLOGE("sigprocmask(SIG_BLOCK)");
+    }
+}
+
+static void setup_sigchld_handler(__sighandler_t handler)
+{
+    struct sigaction act;
+
+    act.sa_handler = handler;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = SA_NOCLDSTOP | SA_RESTART;
+    if (sigaction(SIGCHLD, &act, NULL)) {
+        PLOGE("sigaction(SIGCHLD)");
+        exit(EXIT_FAILURE);
+    }
+}
 
 int send_intent(struct su_context *ctx, allow_t allow, const char *action)
 {
     const char *socket_path;
     unsigned int uid = ctx->from.uid;
+    __sighandler_t handler;
+    pid_t pid;
 
     if (ctx->child) {
-        LOGE("child %d already running", ctx->child);
-        return -1;
+        kill_child(ctx->child);
+        if (ctx->child) {
+            LOGE("child %d is still running", ctx->child);
+            return -1;
+        }
     }
     if (allow == INTERACTIVE) {
         socket_path = ctx->sock_path;
+        handler = sigchld_handler;
     } else {
         socket_path = "";
+        handler = SIG_IGN;
     }
+    setup_sigchld_handler(handler);
 
-    pid_t pid = fork();
+    pid = fork();
     /* Child */
     if (!pid) {
         char command[ARG_MAX];

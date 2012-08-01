@@ -84,6 +84,7 @@ extern allow_t database_check(const struct su_context *ctx);
 extern void set_identity(unsigned int uid);
 extern int send_intent(struct su_context *ctx,
                        allow_t allow, const char *action);
+extern void sigchld_handler(int sig);
 
 static inline char *get_command(const struct su_request *to)
 {

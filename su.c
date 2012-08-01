@@ -149,27 +149,6 @@ static void socket_cleanup(struct su_context *ctx)
     }
 }
 
-static void kill_child(pid_t pid)
-{
-    LOGD("killing child %d", pid);
-    if (pid) {
-        sigset_t set, old;
-
-        sigemptyset(&set);
-        sigaddset(&set, SIGCHLD);
-        if (sigprocmask(SIG_BLOCK, &set, &old)) {
-            PLOGE("sigprocmask(SIG_BLOCK)");
-            return;
-        }
-        if (kill(pid, SIGKILL))
-            PLOGE("kill (%d)", pid);
-        else if (sigsuspend(&old) && errno != EINTR)
-            PLOGE("sigsuspend");
-        if (sigprocmask(SIG_SETMASK, &old, NULL))
-            PLOGE("sigprocmask(SIG_BLOCK)");
-    }
-}
-
 static void child_cleanup(struct su_context *ctx)
 {
     pid_t pid = (ctx && ctx->child) ? ctx->child : -1;
@@ -217,7 +196,7 @@ static void cleanup_signal(int sig)
     exit(128 + sig);
 }
 
-static void sigchld_handler(int sig)
+void sigchld_handler(int sig)
 {
     child_cleanup(su_ctx);
     (void)sig;
@@ -502,7 +481,6 @@ int main(int argc, char *argv[])
         },
         .child = 0,
     };
-    struct sigaction act;
     struct stat st;
     int c, socket_serv_fd, fd;
     char buf[64], *result;
@@ -577,14 +555,6 @@ int main(int argc, char *argv[])
     ctx.to.optind = optind;
 
     su_ctx = &ctx;
-    act.sa_handler = sigchld_handler;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = SA_NOCLDSTOP | SA_RESTART;
-    if (sigaction(SIGCHLD, &act, NULL)) {
-        PLOGE("sigaction(SIGCHLD)");
-        exit(EXIT_FAILURE);
-    }
-
     if (from_init(&ctx.from) < 0) {
         deny(&ctx);
     }
@@ -672,8 +642,6 @@ int main(int argc, char *argv[])
     close(fd);
     close(socket_serv_fd);
     socket_cleanup(&ctx);
-
-    kill_child(ctx.child);	/* we're sure am has done its job at this point */
 
     result = buf;
 
