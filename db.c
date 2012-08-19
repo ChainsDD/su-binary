@@ -44,7 +44,15 @@ int database_check(const struct su_context *ctx)
         fclose(fp);
     } else if ((fp = fopen(REQUESTOR_STORED_DEFAULT, "r"))) {
         LOGD("Using default file %s", REQUESTOR_STORED_DEFAULT);
-        allow = fgetc(fp);
+        char cmd[ARG_MAX];
+        fgets(cmd, sizeof(cmd), fp);
+        int last = strlen(cmd) - 1;
+        if (last >= 0)
+            cmd[last] = 0;
+            
+        if (strcmp(cmd, "default") == 0) {
+            allow = fgetc(fp);
+        }
         fclose(fp);
     }
 
