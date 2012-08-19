@@ -23,42 +23,45 @@
 int database_check(const struct su_context *ctx)
 {
     FILE *fp;
-    int allow = '-';
     char filename[PATH_MAX];
+    char allow[7];
+    int last = 0;
 
     snprintf(filename, sizeof(filename),
                 REQUESTOR_STORED_PATH "/%u-%u", ctx->from.uid, ctx->to.uid);
     if ((fp = fopen(filename, "r"))) {
         LOGD("Found file %s", filename);
+        
+        fgets(allow, sizeof(allow), fp);
+        last = strlen(allow) - 1;
+        if (last >= 0)
+        	allow[last] = 0;
+        	
         char cmd[ARG_MAX];
         fgets(cmd, sizeof(cmd), fp);
         /* skip trailing '\n' */
-        int last = strlen(cmd) - 1;
+        last = strlen(cmd) - 1;
         if (last >= 0)
             cmd[last] = 0;
 
         LOGD("Comparing '%s' to '%s'", cmd, get_command(&ctx->to));
-        if (strcmp(cmd, get_command(&ctx->to)) == 0) {
-            allow = fgetc(fp);
+        if (strcmp(cmd, get_command(&ctx->to)) != 0) {
+            strcpy(allow, "prompt");
         }
         fclose(fp);
     } else if ((fp = fopen(REQUESTOR_STORED_DEFAULT, "r"))) {
         LOGD("Using default file %s", REQUESTOR_STORED_DEFAULT);
-        char cmd[ARG_MAX];
-        fgets(cmd, sizeof(cmd), fp);
-        int last = strlen(cmd) - 1;
-        if (last >= 0)
-            cmd[last] = 0;
-            
-        if (strcmp(cmd, "default") == 0) {
-            allow = fgetc(fp);
-        }
+        fgets(allow, sizeof(allow), fp);
+        last = strlen(allow) - 1;
+        if (last >=0)
+            allow[last] = 0;
+        
         fclose(fp);
     }
 
-    if (allow == '1') {
+    if (strcmp(allow, "allow") == 0) {
         return ALLOW;
-    } else if (allow == '0') {
+    } else if (strcmp(allow, "deny") == 0) {
         return DENY;
     } else {
         return INTERACTIVE;
