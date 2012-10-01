@@ -32,21 +32,23 @@ int database_check(const struct su_context *ctx)
     if ((fp = fopen(filename, "r"))) {
         LOGD("Found file %s", filename);
         
-        fgets(allow, sizeof(allow), fp);
-        last = strlen(allow) - 1;
-        if (last >= 0)
-        	allow[last] = 0;
+        while (fgets(allow, sizeof(allow), fp)) {
+            last = strlen(allow) - 1;
+            if (last >= 0)
+        	    allow[last] = 0;
         	
-        char cmd[ARG_MAX];
-        fgets(cmd, sizeof(cmd), fp);
-        /* skip trailing '\n' */
-        last = strlen(cmd) - 1;
-        if (last >= 0)
-            cmd[last] = 0;
+            char cmd[ARG_MAX];
+            fgets(cmd, sizeof(cmd), fp);
+            /* skip trailing '\n' */
+            last = strlen(cmd) - 1;
+            if (last >= 0)
+                cmd[last] = 0;
 
-        LOGD("Comparing '%s' to '%s'", cmd, get_command(&ctx->to));
-        if (strcmp(cmd, get_command(&ctx->to)) != 0) {
-            strcpy(allow, "prompt");
+            LOGD("Comparing '%s' to '%s'", cmd, get_command(&ctx->to));
+            if (strcmp(cmd, get_command(&ctx->to)) == 0)
+                break;
+            else
+                strcpy(allow, "prompt");
         }
         fclose(fp);
     } else if ((fp = fopen(REQUESTOR_STORED_DEFAULT, "r"))) {
