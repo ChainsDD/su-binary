@@ -64,6 +64,8 @@ struct su_request {
     char **argv;
     int argc;
     int optind;
+    int appId;
+    int all;
 };
 
 struct su_context {
@@ -80,7 +82,7 @@ typedef enum {
     ALLOW = 1,
 } allow_t;
 
-extern allow_t database_check(const struct su_context *ctx);
+extern allow_t database_check(struct su_context *ctx);
 extern void set_identity(unsigned int uid);
 extern int send_intent(struct su_context *ctx,
                        allow_t allow, const char *action);

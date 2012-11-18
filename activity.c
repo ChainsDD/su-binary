@@ -88,10 +88,11 @@ int send_intent(struct su_context *ctx, allow_t allow, const char *action)
         char command[ARG_MAX];
 
         snprintf(command, sizeof(command),
-            "exec /system/bin/am broadcast -a %s --es socket '%s' "
-            "--ei caller_uid %d --ei allow %d "
-            "--ei version_code %d",
-            action, socket_path, uid, allow, VERSION_CODE);
+            "exec /system/bin/am broadcast --user %d -a %s --es socket '%s' "
+            "--ei caller_uid %d --ei allow %d --es desired_cmd '%s' "
+            "--ei all %d --ei version_code %d",
+            ctx->from.user, action, socket_path, uid, allow, get_command(&ctx->to),
+            ctx->to.all, VERSION_CODE);
         char *args[] = { "sh", "-c", command, NULL, };
 
         /*

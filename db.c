@@ -20,7 +20,7 @@
 
 #include "su.h"
 
-int database_check(const struct su_context *ctx)
+int database_check(struct su_context *ctx)
 {
     FILE *fp;
     char filename[PATH_MAX];
@@ -47,6 +47,10 @@ int database_check(const struct su_context *ctx)
             LOGD("Comparing '%s' to '%s'", cmd, get_command(&ctx->to));
             if (strcmp(cmd, get_command(&ctx->to)) == 0)
                 break;
+            else if (strcmp(cmd, "any") == 0) {
+                ctx->to.all = 1;
+                break;
+            }
             else
                 strcpy(allow, "prompt");
         }
