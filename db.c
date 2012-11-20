@@ -26,9 +26,14 @@ int database_check(struct su_context *ctx)
     char filename[PATH_MAX];
     char allow[7];
     int last = 0;
+    int from_uid = ctx->from.uid;
+    
+    if (ctx->user.owner_mode) {
+        from_uid = from_uid % 100000;
+    }
 
     snprintf(filename, sizeof(filename),
-                REQUESTOR_STORED_PATH "/%u-%u", ctx->from.uid, ctx->to.uid);
+                "%s/%u-%u", ctx->user.store_path, from_uid, ctx->to.uid);
     if ((fp = fopen(filename, "r"))) {
         LOGD("Found file %s", filename);
         
@@ -55,8 +60,8 @@ int database_check(struct su_context *ctx)
                 strcpy(allow, "prompt");
         }
         fclose(fp);
-    } else if ((fp = fopen(REQUESTOR_STORED_DEFAULT, "r"))) {
-        LOGD("Using default file %s", REQUESTOR_STORED_DEFAULT);
+    } else if ((fp = fopen(ctx->user.store_default, "r"))) {
+        LOGD("Using default file %s", ctx->user.store_default);
         fgets(allow, sizeof(allow), fp);
         last = strlen(allow) - 1;
         if (last >=0)
@@ -70,6 +75,10 @@ int database_check(struct su_context *ctx)
     } else if (strcmp(allow, "deny") == 0) {
         return DENY;
     } else {
-        return INTERACTIVE;
+        if (ctx->user.userid != 0 && ctx->user.owner_mode) {
+            return DENY;
+        } else {
+            return INTERACTIVE;
+        }
     }
 }

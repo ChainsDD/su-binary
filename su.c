@@ -101,6 +101,35 @@ static int from_init(struct su_initiator *from)
     return 0;
 }
 
+static void read_options(struct su_context *ctx)
+{
+    char mode[12];
+    FILE *fp;
+    if ((fp = fopen(REQUESTOR_OPTIONS, "r"))) {
+        fgets(mode, sizeof(mode), fp);
+        if (strcmp(mode, "user\n") == 0) {
+            ctx->user.owner_mode = 0;
+        } else if (strcmp(mode, "owner\n") == 0) {
+            ctx->user.owner_mode = 1;
+        }
+    }
+}
+
+static void user_init(struct su_context *ctx)
+{
+    if (ctx->from.uid > 99999) {
+    	ctx->user.userid = ctx->from.uid / 100000;
+    	if (!ctx->user.owner_mode) {
+        	snprintf(ctx->user.data_path, PATH_MAX, "/data/user/%d/%s",
+        	        ctx->user.userid, REQUESTOR);
+    	    snprintf(ctx->user.store_path, PATH_MAX, "/data/user/%d/%s/files/stored",
+    	            ctx->user.userid, REQUESTOR);
+        	snprintf(ctx->user.store_default, PATH_MAX, "/data/user/%d/%s/files/stored/default",
+        	        ctx->user.userid, REQUESTOR);
+    	}
+    }
+}
+
 static void populate_environment(const struct su_context *ctx)
 {
     struct passwd *pw;
@@ -452,6 +481,7 @@ int access_disabled(const struct su_initiator *from)
                  "enable it under settings -> developer options");
             return 1;
         }
+        
     }
     return 0;
 }
@@ -474,6 +504,13 @@ int main(int argc, char *argv[])
             .argv = argv,
             .argc = argc,
             .optind = 0,
+        },
+        .user = {
+            .userid = 0,
+            .owner_mode = -1,
+            .data_path = REQUESTOR_DATA_PATH,
+            .store_path = REQUESTOR_STORED_PATH,
+            .store_default = REQUESTOR_STORED_DEFAULT,
         },
         .child = 0,
     };
@@ -554,6 +591,12 @@ int main(int argc, char *argv[])
     if (from_init(&ctx.from) < 0) {
         deny(&ctx);
     }
+    
+    read_options(&ctx);
+    user_init(&ctx);
+    
+    if (ctx.user.owner_mode == -1 && ctx.user.userid != 0)
+        deny(&ctx);
 
     if (access_disabled(&ctx.from))
         deny(&ctx);
@@ -568,7 +611,7 @@ int main(int argc, char *argv[])
     if (ctx.from.uid == AID_ROOT || ctx.from.uid == AID_SHELL)
         allow(&ctx);
 
-    if (stat(REQUESTOR_DATA_PATH, &st) < 0) {
+    if (stat(ctx.user.data_path, &st) < 0) {
         PLOGE("stat");
         deny(&ctx);
     }

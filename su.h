@@ -29,6 +29,7 @@
 
 #define REQUESTOR_STORED_PATH REQUESTOR_DATA_PATH "/files/stored"
 #define REQUESTOR_STORED_DEFAULT REQUESTOR_STORED_PATH "/default"
+#define REQUESTOR_OPTIONS REQUESTOR_STORED_PATH "/options"
 
 /* intent actions */
 #define ACTION_REQUEST REQUESTOR ".REQUEST"
@@ -51,6 +52,7 @@
 struct su_initiator {
     pid_t pid;
     unsigned uid;
+    unsigned user;
     char bin[PATH_MAX];
     char args[4096];
 };
@@ -68,9 +70,18 @@ struct su_request {
     int all;
 };
 
+struct su_user_info {
+    unsigned userid;
+    int owner_mode;
+    char data_path[PATH_MAX];
+    char store_path[PATH_MAX];
+    char store_default[PATH_MAX];
+};
+
 struct su_context {
     struct su_initiator from;
     struct su_request to;
+    struct su_user_info user;
     mode_t umask;
     volatile pid_t child;
     char sock_path[PATH_MAX];
