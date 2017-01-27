@@ -15,7 +15,7 @@
 ** limitations under the License.
 */
 
-#ifndef SU_h 
+#ifndef SU_h
 #define SU_h 1
 
 #ifdef LOG_TAG
@@ -37,9 +37,9 @@
 #define DEFAULT_SHELL "/system/bin/sh"
 
 #ifdef SU_LEGACY_BUILD
-#define VERSION_EXTRA	"l"
+#define VERSION_EXTRA   "l"
 #else
-#define VERSION_EXTRA	""
+#define VERSION_EXTRA   ""
 #endif
 
 #define VERSION "3.2" VERSION_EXTRA
@@ -85,7 +85,7 @@ extern int send_intent(const struct su_context *ctx,
 
 static inline char *get_command(const struct su_request *to)
 {
-	return (to->command) ? to->command : to->shell;
+        return (to->command) ? to->command : to->shell;
 }
 
 #if 0
@@ -97,7 +97,7 @@ static inline char *get_command(const struct su_request *to)
 #define LOGW(fmt,args...) fprintf(stderr, fmt, ##args)
 #endif
 
-#define PLOGE(fmt,args...) LOGE(fmt " failed with %d: %s", ##args, errno, strerror(errno))
-#define PLOGEV(fmt,err,args...) LOGE(fmt " failed with %d: %s", ##args, err, strerror(err))
+#define PLOGE(fmt,args...) ALOGE(fmt " failed with %d: %s", ##args, errno, strerror(errno))
+#define PLOGEV(fmt,err,args...) ALOGE(fmt " failed with %d: %s", ##args, err, strerror(err))
 
 #endif
